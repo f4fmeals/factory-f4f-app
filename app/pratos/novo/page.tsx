@@ -16,6 +16,7 @@ type PratoBase = {
   tamanho: string
   peso_final: number
   prioridade_embalamento: number
+  categoria_prato: string | null
 }
 
 type PratoComComponentes = {
@@ -25,6 +26,7 @@ type PratoComComponentes = {
   tamanho: string
   peso_final: number
   prioridade_embalamento: number
+  categoria_prato: string | null
   pratos_componentes: {
     componente_id: number
     quantidade_final: number
@@ -201,13 +203,173 @@ function SearchableComponenteSelect({
   )
 }
 
+type SearchablePratoSelectProps = {
+  pratos: PratoBase[]
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  disabled?: boolean
+}
+
+function SearchablePratoSelect({
+  pratos,
+  value,
+  onChange,
+  placeholder = 'Pesquisar prato existente',
+  disabled = false,
+}: SearchablePratoSelectProps) {
+  const [aberto, setAberto] = useState(false)
+  const [pesquisa, setPesquisa] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const pratoSelecionado = useMemo(
+    () => pratos.find((item) => String(item.id) === String(value)),
+    [pratos, value]
+  )
+
+  const debouncedPesquisa = useDebouncedValue(pesquisa, 300)
+
+  const pratosFiltrados = useMemo(() => {
+    const termo = debouncedPesquisa.trim().toLowerCase()
+
+    if (termo.length < 3) return []
+
+    return pratos
+      .filter((item) => {
+        const nome = item.nome?.toLowerCase() || ''
+        const sku = item.sku?.toLowerCase() || ''
+        const tamanho = item.tamanho?.toLowerCase() || ''
+        return (
+          nome.includes(termo) ||
+          sku.includes(termo) ||
+          tamanho.includes(termo)
+        )
+      })
+      .slice(0, 30)
+  }, [pratos, debouncedPesquisa])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setAberto(false)
+        setPesquisa('')
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
+  function abrirDropdown() {
+    if (disabled) return
+    setAberto(true)
+
+    setTimeout(() => {
+      inputRef.current?.focus()
+    }, 0)
+  }
+
+  function selecionarPrato(id: string) {
+    onChange(id)
+    setAberto(false)
+    setPesquisa('')
+  }
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={abrirDropdown}
+        disabled={disabled}
+        className="w-full border px-3 py-2 rounded bg-white text-left flex items-center justify-between disabled:bg-gray-100 disabled:cursor-not-allowed"
+      >
+        <span className={pratoSelecionado ? 'text-black' : 'text-gray-500'}>
+          {pratoSelecionado
+            ? `${pratoSelecionado.nome}${pratoSelecionado.tamanho ? ` (${pratoSelecionado.tamanho})` : ''}`
+            : placeholder}
+        </span>
+        <span className="ml-3 text-gray-500">▼</span>
+      </button>
+
+      {aberto && !disabled && (
+        <div className="absolute z-50 mt-1 w-full rounded border bg-white shadow-lg">
+          <div className="p-2 border-b">
+            <input
+              ref={inputRef}
+              type="text"
+              value={pesquisa}
+              onChange={(e) => setPesquisa(e.target.value)}
+              placeholder="Escreve pelo menos 3 letras..."
+              className="w-full border px-3 py-2 rounded outline-none"
+            />
+          </div>
+
+          <div className="max-h-60 overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => selecionarPrato('')}
+              className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b"
+            >
+              Limpar seleção
+            </button>
+
+            {debouncedPesquisa !== pesquisa ? (
+              <div className="px-3 py-2 text-gray-500">
+                A aguardar a digitação...
+              </div>
+            ) : debouncedPesquisa.trim().length < 3 ? (
+              <div className="px-3 py-2 text-gray-500">
+                Introduz pelo menos 3 letras para pesquisar pratos.
+              </div>
+            ) : pratosFiltrados.length > 0 ? (
+              pratosFiltrados.map((prato) => (
+                <button
+                  key={prato.id}
+                  type="button"
+                  onClick={() => selecionarPrato(String(prato.id))}
+                  className={`w-full text-left px-3 py-2 hover:bg-gray-100 ${
+                    String(value) === String(prato.id)
+                      ? 'bg-green-50 font-medium'
+                      : ''
+                  }`}
+                >
+                  {prato.nome} {prato.tamanho ? `(${prato.tamanho})` : ''}
+                  {prato.sku ? ` - ${prato.sku}` : ''}
+                </button>
+              ))
+            ) : (
+              <div className="px-3 py-2 text-gray-500">
+                Nenhum prato encontrado.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const unidades = ['g', 'kg', 'ml', 'l', 'un']
 const prioridades = [1, 2, 3]
+const categoriasPrato = [
+  'Pratos principais',
+  'Pratos leves',
+  'Pequenos almoços',
+  'Doces',
+  'Sumos',
+]
 
 export default function NovoPratoPage() {
   const [nome, setNome] = useState('')
   const [sku, setSku] = useState('')
   const [tamanho, setTamanho] = useState('')
+  const [categoriaPrato, setCategoriaPrato] = useState('')
   const [pesoFinal, setPesoFinal] = useState('')
   const [prioridadeEmbalamento, setPrioridadeEmbalamento] = useState('1')
 
@@ -247,7 +409,7 @@ export default function NovoPratoPage() {
         .order('nome', { ascending: true }),
       supabase
         .from('pratos')
-        .select('id, nome, sku, tamanho, peso_final, prioridade_embalamento')
+        .select('id, nome, sku, tamanho, peso_final, prioridade_embalamento, categoria_prato')
         .order('nome', { ascending: true }),
     ])
 
@@ -275,6 +437,7 @@ export default function NovoPratoPage() {
     setNome('')
     setSku('')
     setTamanho('')
+    setCategoriaPrato('')
     setPesoFinal('')
     setPrioridadeEmbalamento('1')
     setPratoOrigemId('')
@@ -340,6 +503,7 @@ export default function NovoPratoPage() {
         tamanho,
         peso_final,
         prioridade_embalamento,
+        categoria_prato,
         pratos_componentes (
           componente_id,
           quantidade_final,
@@ -363,6 +527,7 @@ export default function NovoPratoPage() {
     setNome(`${prato.nome} - cópia`)
     setSku('')
     setTamanho(prato.tamanho || '')
+    setCategoriaPrato(prato.categoria_prato || '')
     setPesoFinal(prato.peso_final ? String(prato.peso_final) : '')
     setPrioridadeEmbalamento(
       prato.prioridade_embalamento
@@ -404,6 +569,7 @@ export default function NovoPratoPage() {
     if (!nome.trim()) return 'O nome do prato é obrigatório.'
     if (!sku.trim()) return 'O SKU é obrigatório.'
     if (!tamanho.trim()) return 'O tamanho é obrigatório.'
+    if (!categoriaPrato.trim()) return 'A categoria do prato é obrigatória.'
 
     if (!pesoFinal.trim() || Number(pesoFinal) <= 0) {
       return 'O peso final tem de ser maior que 0.'
@@ -472,6 +638,7 @@ export default function NovoPratoPage() {
           nome: nome.trim(),
           sku: sku.trim(),
           tamanho: tamanho.trim(),
+          categoria_prato: categoriaPrato.trim(),
           peso_final: Number(pesoFinal),
           prioridade_embalamento: Number(prioridadeEmbalamento),
         },
@@ -554,7 +721,6 @@ export default function NovoPratoPage() {
         ) : componentesBase.length === 0 ? (
           <div className="border rounded p-4 bg-yellow-50 mb-6">
             Não existem componentes criados na tabela <strong>componentes</strong>.
-            Cria primeiro um componente.
           </div>
         ) : null}
 
@@ -565,25 +731,19 @@ export default function NovoPratoPage() {
         )}
 
         <div className="space-y-8">
-          <section className="border rounded p-6 bg-blue-50">
+          <section className="border rounded p-6 bg-gray-100">
             <h2 className="text-2xl font-bold mb-4">0. Criar a partir de prato existente</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
               <div className="md:col-span-2">
                 <label className="block mb-2 font-medium">Escolher prato</label>
-                <select
+                <SearchablePratoSelect
+                  pratos={pratosBase}
                   value={pratoOrigemId}
-                  onChange={(e) => setPratoOrigemId(e.target.value)}
-                  className="w-full border px-3 py-2 rounded bg-white"
+                  onChange={setPratoOrigemId}
+                  placeholder="Pesquisar prato existente"
                   disabled={loadingDados || pratosBase.length === 0 || aCopiarPrato}
-                >
-                  <option value="">Selecionar prato existente</option>
-                  {pratosBase.map((prato) => (
-                    <option key={prato.id} value={prato.id}>
-                      {prato.nome} {prato.tamanho ? `(${prato.tamanho})` : ''}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
               <div>
@@ -591,7 +751,7 @@ export default function NovoPratoPage() {
                   type="button"
                   onClick={copiarDePratoExistente}
                   disabled={!pratoOrigemId || aCopiarPrato || loadingDados}
-                  className="w-full px-4 py-2 rounded bg-blue-600 text-white font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-2 rounded bg-gray-700 text-white font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                   {aCopiarPrato ? 'A copiar...' : 'Copiar prato'}
                 </button>
@@ -637,6 +797,22 @@ export default function NovoPratoPage() {
               </div>
 
               <div>
+                <label className="block mb-2 font-medium">Categoria do prato</label>
+                <select
+                  value={categoriaPrato}
+                  onChange={(e) => setCategoriaPrato(e.target.value)}
+                  className="w-full border px-3 py-2 rounded bg-white"
+                >
+                  <option value="">Selecionar categoria</option>
+                  {categoriasPrato.map((categoria) => (
+                    <option key={categoria} value={categoria}>
+                      {categoria}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className="block mb-2 font-medium">Peso final</label>
                 <input
                   type="number"
@@ -669,13 +845,6 @@ export default function NovoPratoPage() {
               <h2 className="text-2xl font-bold">2. Componentes do prato</h2>
 
               <div className="flex gap-3 flex-wrap">
-                <Link
-                  href="/componentes/novo"
-                  className="px-4 py-2 rounded bg-blue-600 text-white font-medium"
-                >
-                  + Novo componente
-                </Link>
-
                 <button
                   type="button"
                   onClick={adicionarComponentePrato}
