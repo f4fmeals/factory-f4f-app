@@ -164,7 +164,7 @@ function IngredientSearchSelect({
             onChange('')
           }
         }}
-        className="w-full border px-3 py-2 rounded bg-white disabled:bg-gray-100"
+        className="w-full border px-3 py-2 rounded bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
         autoComplete="off"
       />
 
@@ -405,7 +405,6 @@ export default function NovoComponentePage() {
       console.log('tarefasConfeccao', tarefasConfeccao)
       console.log('tarefasFinalizacao', tarefasFinalizacao)
 
-      // 1. Verificar se componente já existe
       const { data: componenteExistente, error: erroComponenteExistente } =
         await supabase
           .from('componentes')
@@ -428,7 +427,6 @@ export default function NovoComponentePage() {
         return
       }
 
-      // 2. Criar componente
       const { data: componenteCriado, error: erroCriarComponente } = await supabase
         .from('componentes')
         .insert([
@@ -454,7 +452,6 @@ export default function NovoComponentePage() {
 
       const componenteId = (componenteCriado as ComponenteCriado).id
 
-      // 3. Gravar ingredientes do componente
       const ingredientesValidos = componentesIngredientes
         .filter((item) => item.ingrediente_id && item.quantidade.trim())
         .map((item) => ({
@@ -488,7 +485,6 @@ export default function NovoComponentePage() {
 
       console.log('componentesIngredientesCriados', componentesIngredientesCriados)
 
-      // 4. Criar mapa ingrediente_id -> componente_ingrediente.id
       const mapaComponenteIngredienteId = new Map<number, number>()
 
       for (const item of componentesIngredientesCriados) {
@@ -500,7 +496,6 @@ export default function NovoComponentePage() {
         Array.from(mapaComponenteIngredienteId.entries())
       )
 
-      // 5. Preparar tarefas de preparação
       const tarefasPreparacaoFiltradas = tarefasPreparacao.filter(
         (item) => item.ingrediente_id && item.tarefa.trim()
       )
@@ -546,7 +541,6 @@ export default function NovoComponentePage() {
         console.log('Nenhuma tarefa de preparação válida para inserir.')
       }
 
-      // 6. Gravar tarefas de confeção
       const tarefasConfeccaoValidas = tarefasConfeccao
         .filter((item) => item.tarefa.trim())
         .map((item) => ({
@@ -574,7 +568,6 @@ export default function NovoComponentePage() {
         }
       }
 
-      // 7. Gravar tarefas de finalização
       const tarefasFinalizacaoValidas = tarefasFinalizacao
         .filter((item) => item.tarefa.trim())
         .map((item) => ({
@@ -740,106 +733,64 @@ export default function NovoComponentePage() {
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Novo componente</h1>
-          <div className="flex gap-3">
-            <Link
-              href="/"
-              className="px-4 py-2 rounded bg-gray-200 text-black font-medium"
-            >
-              Voltar
-            </Link>
-          </div>
+
+          <Link
+            href="/"
+            className="px-4 py-2 rounded bg-gray-200 text-black font-medium"
+          >
+            Voltar
+          </Link>
         </div>
 
+        {loadingIngredientes ? (
+          <div className="border rounded p-4 bg-yellow-50 mb-6">
+            A carregar ingredientes...
+          </div>
+        ) : ingredientes.length === 0 ? (
+          <div className="border rounded p-4 bg-yellow-50 mb-6">
+            Não existem ingredientes criados na tabela <strong>ingredientes</strong>.
+          </div>
+        ) : null}
+
         {mensagem && (
-          <div className="border rounded p-4 bg-blue-50 mb-6 font-bold text-blue-800">
-            {mensagem}
+          <div className="border rounded p-4 bg-white mb-6">
+            <p>{mensagem}</p>
           </div>
         )}
 
         <div className="space-y-8">
           <section className="border rounded p-6 bg-gray-50">
-            <h2 className="text-2xl font-bold mb-4">1. Dados base</h2>
+            <h2 className="text-2xl font-bold mb-4">1. Dados base do componente</h2>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <input
-                type="text"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                className="border px-3 py-2 rounded"
-                placeholder="Nome do componente"
-              />
-              <input
-                type="number"
-                value={rendimentoFinal}
-                onChange={(e) => setRendimentoFinal(e.target.value)}
-                className="border px-3 py-2 rounded"
-                placeholder="Rendimento final"
-              />
-              <select
-                value={unidadeRendimento}
-                onChange={(e) => setUnidadeRendimento(e.target.value)}
-                className="border px-3 py-2 rounded"
-              >
-                {unidades.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </section>
-
-          <section className="border rounded p-6 bg-gray-50">
-            <div className="flex justify-between mb-4">
-              <h2 className="text-2xl font-bold">2. Ingredientes</h2>
-              <button
-                onClick={adicionarIngredienteComponente}
-                className="px-4 py-2 bg-green-600 text-white rounded"
-              >
-                + Adicionar
-              </button>
-            </div>
-
-            {loadingIngredientes && (
-              <div className="mb-4 text-sm text-gray-500">
-                A carregar ingredientes...
-              </div>
-            )}
-
-            {componentesIngredientes.map((item) => (
-              <div
-                key={item.idLocal}
-                className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 p-4 bg-white border rounded"
-              >
-                <IngredientSearchSelect
-                  ingredientes={ingredientes}
-                  value={item.ingrediente_id}
-                  onChange={(v) =>
-                    atualizarIngredienteComponente(item.idLocal, 'ingrediente_id', v)
-                  }
+              <div>
+                <label className="block mb-2 font-medium">Nome do componente</label>
+                <input
+                  type="text"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  className="w-full border px-3 py-2 rounded bg-white"
+                  placeholder="Ex: Arroz basmati cozido"
                 />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">Rendimento final</label>
                 <input
                   type="number"
-                  value={item.quantidade}
-                  onChange={(e) =>
-                    atualizarIngredienteComponente(
-                      item.idLocal,
-                      'quantidade',
-                      e.target.value
-                    )
-                  }
-                  className="border px-3 py-2 rounded"
-                  placeholder="Qtd"
+                  value={rendimentoFinal}
+                  onChange={(e) => setRendimentoFinal(e.target.value)}
+                  className="w-full border px-3 py-2 rounded bg-white"
+                  placeholder="Ex: 2500"
                 />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">Unidade do rendimento</label>
                 <select
-                  value={item.unidade}
-                  onChange={(e) =>
-                    atualizarIngredienteComponente(
-                      item.idLocal,
-                      'unidade',
-                      e.target.value
-                    )
-                  }
-                  className="border px-3 py-2 rounded"
+                  value={unidadeRendimento}
+                  onChange={(e) => setUnidadeRendimento(e.target.value)}
+                  className="w-full border px-3 py-2 rounded bg-white"
                 >
                   {unidades.map((u) => (
                     <option key={u} value={u}>
@@ -847,156 +798,386 @@ export default function NovoComponentePage() {
                     </option>
                   ))}
                 </select>
-                <button
-                  onClick={() => removerIngredienteComponente(item.idLocal)}
-                  className="bg-red-500 text-white rounded"
-                >
-                  Remover
-                </button>
               </div>
-            ))}
+            </div>
           </section>
 
           <section className="border rounded p-6 bg-gray-50">
-            <div className="flex justify-between mb-4">
+            <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
+              <h2 className="text-2xl font-bold">2. Ingredientes do componente</h2>
+
+              <button
+                type="button"
+                onClick={adicionarIngredienteComponente}
+                className="px-4 py-2 rounded text-white"
+                style={{ backgroundColor: '#80c944' }}
+              >
+                + Adicionar ingrediente
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {componentesIngredientes.map((item, index) => (
+                <div
+                  key={item.idLocal}
+                  className="border rounded p-4 bg-white grid grid-cols-1 md:grid-cols-5 gap-4"
+                >
+                  <div>
+                    <label className="block mb-2 font-medium">
+                      Ingrediente {index + 1}
+                    </label>
+                    <IngredientSearchSelect
+                      ingredientes={ingredientes}
+                      value={item.ingrediente_id}
+                      onChange={(v) =>
+                        atualizarIngredienteComponente(item.idLocal, 'ingrediente_id', v)
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block mb-2 font-medium">Quantidade</label>
+                    <input
+                      type="number"
+                      value={item.quantidade}
+                      onChange={(e) =>
+                        atualizarIngredienteComponente(
+                          item.idLocal,
+                          'quantidade',
+                          e.target.value
+                        )
+                      }
+                      className="w-full border px-3 py-2 rounded bg-white"
+                      placeholder="Ex: 500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block mb-2 font-medium">Unidade</label>
+                    <select
+                      value={item.unidade}
+                      onChange={(e) =>
+                        atualizarIngredienteComponente(
+                          item.idLocal,
+                          'unidade',
+                          e.target.value
+                        )
+                      }
+                      className="w-full border px-3 py-2 rounded bg-white"
+                    >
+                      {unidades.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block mb-2 font-medium">Observações</label>
+                    <input
+                      type="text"
+                      value={item.observacoes}
+                      onChange={(e) =>
+                        atualizarIngredienteComponente(
+                          item.idLocal,
+                          'observacoes',
+                          e.target.value
+                        )
+                      }
+                      className="w-full border px-3 py-2 rounded bg-white"
+                      placeholder="Opcional"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block mb-2 font-medium">&nbsp;</label>
+                    <button
+                      type="button"
+                      onClick={() => removerIngredienteComponente(item.idLocal)}
+                      className="w-full px-4 py-2 rounded bg-red-600 text-white"
+                    >
+                      Remover
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="border rounded p-6 bg-gray-50">
+            <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
               <h2 className="text-2xl font-bold">3. Preparação (por ingrediente)</h2>
+
               <button
+                type="button"
                 onClick={adicionarTarefaPreparacao}
-                className="px-4 py-2 bg-green-600 text-white rounded"
+                className="px-4 py-2 rounded text-white"
+                style={{ backgroundColor: '#80c944' }}
               >
                 + Tarefa
               </button>
             </div>
 
-            {tarefasPreparacao.map((item) => (
-              <div
-                key={item.idLocal}
-                className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-2"
-              >
-                <IngredientSearchSelect
-                  ingredientes={ingredientes}
-                  value={item.ingrediente_id}
-                  onChange={(v) =>
-                    atualizarTarefaPreparacao(item.idLocal, 'ingrediente_id', v)
-                  }
-                />
-                <input
-                  type="text"
-                  value={item.tarefa}
-                  onChange={(e) =>
-                    atualizarTarefaPreparacao(item.idLocal, 'tarefa', e.target.value)
-                  }
-                  className="border px-3 py-2 rounded"
-                  placeholder="Tarefa"
-                />
-                <input
-                  type="number"
-                  value={item.ordem}
-                  onChange={(e) =>
-                    atualizarTarefaPreparacao(item.idLocal, 'ordem', e.target.value)
-                  }
-                  className="border px-3 py-2 rounded w-20"
-                  placeholder="Ordem"
-                />
-                <button
-                  onClick={() => removerTarefaPreparacao(item.idLocal)}
-                  className="text-red-500"
+            <div className="space-y-4">
+              {tarefasPreparacao.map((item, index) => (
+                <div
+                  key={item.idLocal}
+                  className="border rounded p-4 bg-white grid grid-cols-1 md:grid-cols-5 gap-4"
                 >
-                  X
-                </button>
-              </div>
-            ))}
+                  <div>
+                    <label className="block mb-2 font-medium">
+                      Ingrediente {index + 1}
+                    </label>
+                    <IngredientSearchSelect
+                      ingredientes={ingredientes}
+                      value={item.ingrediente_id}
+                      onChange={(v) =>
+                        atualizarTarefaPreparacao(item.idLocal, 'ingrediente_id', v)
+                      }
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block mb-2 font-medium">Tarefa</label>
+                    <input
+                      type="text"
+                      value={item.tarefa}
+                      onChange={(e) =>
+                        atualizarTarefaPreparacao(item.idLocal, 'tarefa', e.target.value)
+                      }
+                      className="w-full border px-3 py-2 rounded bg-white"
+                      placeholder="Ex: Cortar em cubos pequenos"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block mb-2 font-medium">Ordem</label>
+                    <input
+                      type="number"
+                      value={item.ordem}
+                      onChange={(e) =>
+                        atualizarTarefaPreparacao(item.idLocal, 'ordem', e.target.value)
+                      }
+                      className="w-full border px-3 py-2 rounded bg-white"
+                      placeholder="Ex: 1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block mb-2 font-medium">&nbsp;</label>
+                    <button
+                      type="button"
+                      onClick={() => removerTarefaPreparacao(item.idLocal)}
+                      className="w-full px-4 py-2 rounded bg-red-600 text-white"
+                    >
+                      Remover
+                    </button>
+                  </div>
+
+                  <div className="md:col-span-5">
+                    <label className="block mb-2 font-medium">Observações</label>
+                    <input
+                      type="text"
+                      value={item.observacoes}
+                      onChange={(e) =>
+                        atualizarTarefaPreparacao(
+                          item.idLocal,
+                          'observacoes',
+                          e.target.value
+                        )
+                      }
+                      className="w-full border px-3 py-2 rounded bg-white"
+                      placeholder="Opcional"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
 
           <section className="border rounded p-6 bg-gray-50">
-            <div className="flex justify-between mb-4">
+            <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
               <h2 className="text-2xl font-bold">4. Confeção</h2>
+
               <button
+                type="button"
                 onClick={adicionarTarefaConfeccao}
-                className="px-4 py-2 bg-green-600 text-white rounded"
+                className="px-4 py-2 rounded text-white"
+                style={{ backgroundColor: '#80c944' }}
               >
                 + Tarefa
               </button>
             </div>
 
-            {tarefasConfeccao.map((item) => (
-              <div key={item.idLocal} className="flex gap-4 mb-2">
-                <input
-                  type="number"
-                  value={item.ordem}
-                  onChange={(e) =>
-                    atualizarTarefaConfeccao(item.idLocal, 'ordem', e.target.value)
-                  }
-                  className="border px-3 py-2 rounded w-20"
-                  placeholder="1"
-                />
-                <input
-                  type="text"
-                  value={item.tarefa}
-                  onChange={(e) =>
-                    atualizarTarefaConfeccao(item.idLocal, 'tarefa', e.target.value)
-                  }
-                  className="border px-3 py-2 rounded flex-1"
-                  placeholder="Ex: Cozer o frango"
-                />
-                <button
-                  onClick={() => removerTarefaConfeccao(item.idLocal)}
-                  className="text-red-500"
+            <div className="space-y-4">
+              {tarefasConfeccao.map((item) => (
+                <div
+                  key={item.idLocal}
+                  className="border rounded p-4 bg-white grid grid-cols-1 md:grid-cols-4 gap-4"
                 >
-                  X
-                </button>
-              </div>
-            ))}
+                  <div>
+                    <label className="block mb-2 font-medium">Ordem</label>
+                    <input
+                      type="number"
+                      value={item.ordem}
+                      onChange={(e) =>
+                        atualizarTarefaConfeccao(item.idLocal, 'ordem', e.target.value)
+                      }
+                      className="w-full border px-3 py-2 rounded bg-white"
+                      placeholder="Ex: 1"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block mb-2 font-medium">Tarefa</label>
+                    <input
+                      type="text"
+                      value={item.tarefa}
+                      onChange={(e) =>
+                        atualizarTarefaConfeccao(item.idLocal, 'tarefa', e.target.value)
+                      }
+                      className="w-full border px-3 py-2 rounded bg-white"
+                      placeholder="Ex: Cozer o frango"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block mb-2 font-medium">&nbsp;</label>
+                    <button
+                      type="button"
+                      onClick={() => removerTarefaConfeccao(item.idLocal)}
+                      className="w-full px-4 py-2 rounded bg-red-600 text-white"
+                    >
+                      Remover
+                    </button>
+                  </div>
+
+                  <div className="md:col-span-4">
+                    <label className="block mb-2 font-medium">Observações</label>
+                    <input
+                      type="text"
+                      value={item.observacoes}
+                      onChange={(e) =>
+                        atualizarTarefaConfeccao(
+                          item.idLocal,
+                          'observacoes',
+                          e.target.value
+                        )
+                      }
+                      className="w-full border px-3 py-2 rounded bg-white"
+                      placeholder="Opcional"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
 
           <section className="border rounded p-6 bg-gray-50">
-            <div className="flex justify-between mb-4">
+            <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
               <h2 className="text-2xl font-bold">5. Finalização</h2>
+
               <button
+                type="button"
                 onClick={adicionarTarefaFinalizacao}
-                className="px-4 py-2 bg-green-600 text-white rounded"
+                className="px-4 py-2 rounded text-white"
+                style={{ backgroundColor: '#80c944' }}
               >
                 + Tarefa
               </button>
             </div>
 
-            {tarefasFinalizacao.map((item) => (
-              <div key={item.idLocal} className="flex gap-4 mb-2">
-                <input
-                  type="number"
-                  value={item.ordem}
-                  onChange={(e) =>
-                    atualizarTarefaFinalizacao(item.idLocal, 'ordem', e.target.value)
-                  }
-                  className="border px-3 py-2 rounded w-20"
-                  placeholder="1"
-                />
-                <input
-                  type="text"
-                  value={item.tarefa}
-                  onChange={(e) =>
-                    atualizarTarefaFinalizacao(item.idLocal, 'tarefa', e.target.value)
-                  }
-                  className="border px-3 py-2 rounded flex-1"
-                  placeholder="Ex: Adicionar sementes"
-                />
-                <button
-                  onClick={() => removerTarefaFinalizacao(item.idLocal)}
-                  className="text-red-500"
+            <div className="space-y-4">
+              {tarefasFinalizacao.map((item) => (
+                <div
+                  key={item.idLocal}
+                  className="border rounded p-4 bg-white grid grid-cols-1 md:grid-cols-4 gap-4"
                 >
-                  X
-                </button>
-              </div>
-            ))}
+                  <div>
+                    <label className="block mb-2 font-medium">Ordem</label>
+                    <input
+                      type="number"
+                      value={item.ordem}
+                      onChange={(e) =>
+                        atualizarTarefaFinalizacao(item.idLocal, 'ordem', e.target.value)
+                      }
+                      className="w-full border px-3 py-2 rounded bg-white"
+                      placeholder="Ex: 1"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block mb-2 font-medium">Tarefa</label>
+                    <input
+                      type="text"
+                      value={item.tarefa}
+                      onChange={(e) =>
+                        atualizarTarefaFinalizacao(item.idLocal, 'tarefa', e.target.value)
+                      }
+                      className="w-full border px-3 py-2 rounded bg-white"
+                      placeholder="Ex: Adicionar sementes"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block mb-2 font-medium">&nbsp;</label>
+                    <button
+                      type="button"
+                      onClick={() => removerTarefaFinalizacao(item.idLocal)}
+                      className="w-full px-4 py-2 rounded bg-red-600 text-white"
+                    >
+                      Remover
+                    </button>
+                  </div>
+
+                  <div className="md:col-span-4">
+                    <label className="block mb-2 font-medium">Observações</label>
+                    <input
+                      type="text"
+                      value={item.observacoes}
+                      onChange={(e) =>
+                        atualizarTarefaFinalizacao(
+                          item.idLocal,
+                          'observacoes',
+                          e.target.value
+                        )
+                      }
+                      className="w-full border px-3 py-2 rounded bg-white"
+                      placeholder="Opcional"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
 
-          <button
-            onClick={guardarComponente}
-            disabled={aGuardar}
-            className="w-full py-4 bg-blue-700 text-white rounded-lg font-bold text-xl disabled:bg-gray-400"
-          >
-            {aGuardar ? 'A guardar...' : 'GUARDAR COMPONENTE COMPLETO'}
-          </button>
+          <div className="flex gap-3 pb-8 flex-wrap">
+            <button
+              type="button"
+              onClick={guardarComponente}
+              disabled={aGuardar}
+              className="text-white px-6 py-3 rounded font-medium"
+              style={{ backgroundColor: '#80c944' }}
+            >
+              {aGuardar ? 'A guardar...' : 'Guardar componente'}
+            </button>
+
+            <button
+              type="button"
+              onClick={limparFormulario}
+              className="px-6 py-3 rounded bg-gray-200 text-black font-medium"
+            >
+              Limpar
+            </button>
+
+            <Link
+              href="/"
+              className="px-6 py-3 rounded bg-gray-200 text-black font-medium"
+            >
+              Cancelar
+            </Link>
+          </div>
         </div>
       </div>
     </main>
