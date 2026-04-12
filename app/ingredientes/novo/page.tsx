@@ -23,6 +23,11 @@ export default function NovoIngredientePage() {
   const [unidadePreco, setUnidadePreco] = useState('kg')
   const [categoria, setCategoria] = useState('talho')
 
+  const [nomeFornecedor, setNomeFornecedor] = useState('')
+  const [referenciaFornecedor, setReferenciaFornecedor] = useState('')
+  const [quantidadeEmbalagem, setQuantidadeEmbalagem] = useState('')
+  const [unidadeEmbalagem, setUnidadeEmbalagem] = useState('kg')
+
   const [aGuardar, setAGuardar] = useState(false)
   const [mensagem, setMensagem] = useState('')
 
@@ -31,12 +36,36 @@ export default function NovoIngredientePage() {
     if (!unidadeBase.trim()) return 'A unidade base é obrigatória.'
     if (!categoria.trim()) return 'A categoria é obrigatória.'
 
-    if (precoUnitario.trim() && Number(precoUnitario) < 0) {
-      return 'O preço unitário não pode ser negativo.'
+    if (precoUnitario.trim()) {
+      const precoNumero = Number(precoUnitario)
+
+      if (Number.isNaN(precoNumero)) {
+        return 'O preço unitário tem de ser um número válido.'
+      }
+
+      if (precoNumero < 0) {
+        return 'O preço unitário não pode ser negativo.'
+      }
+
+      if (!unidadePreco.trim()) {
+        return 'Se existir preço, tens de indicar a unidade do preço.'
+      }
     }
 
-    if (precoUnitario.trim() && !unidadePreco.trim()) {
-      return 'Se existir preço, tens de indicar a unidade do preço.'
+    if (quantidadeEmbalagem.trim()) {
+      const quantidadeNumero = Number(quantidadeEmbalagem)
+
+      if (Number.isNaN(quantidadeNumero)) {
+        return 'A quantidade da embalagem tem de ser um número válido.'
+      }
+
+      if (quantidadeNumero <= 0) {
+        return 'A quantidade da embalagem tem de ser maior que zero.'
+      }
+
+      if (!unidadeEmbalagem.trim()) {
+        return 'Se existir quantidade de embalagem, tens de indicar a unidade da embalagem.'
+      }
     }
 
     return ''
@@ -54,6 +83,15 @@ export default function NovoIngredientePage() {
     setAGuardar(true)
 
     const nomeNormalizado = nome.trim()
+    const nomeFornecedorFinal = nomeFornecedor.trim() || null
+    const referenciaFornecedorFinal = referenciaFornecedor.trim() || null
+    const precoFinal = precoUnitario.trim() ? Number(precoUnitario) : null
+    const unidadePrecoFinal = precoFinal !== null ? unidadePreco.trim() : null
+    const quantidadeEmbalagemFinal = quantidadeEmbalagem.trim()
+      ? Number(quantidadeEmbalagem)
+      : null
+    const unidadeEmbalagemFinal =
+      quantidadeEmbalagemFinal !== null ? unidadeEmbalagem.trim() : null
 
     const { data: existente, error: erroExistente } = await supabase
       .from('ingredientes')
@@ -76,9 +114,6 @@ export default function NovoIngredientePage() {
       return
     }
 
-    const precoFinal = precoUnitario.trim() ? Number(precoUnitario) : null
-    const unidadePrecoFinal = precoFinal !== null ? unidadePreco.trim() : null
-
     const { error } = await supabase.from('ingredientes').insert([
       {
         nome: nomeNormalizado,
@@ -87,6 +122,10 @@ export default function NovoIngredientePage() {
         preco: precoFinal,
         unidade_preco: unidadePrecoFinal,
         taxa_perda_padrao: null,
+        nome_fornecedor: nomeFornecedorFinal,
+        referencia_fornecedor: referenciaFornecedorFinal,
+        quantidade_embalagem: quantidadeEmbalagemFinal,
+        unidade_embalagem: unidadeEmbalagemFinal,
       },
     ])
 
@@ -104,6 +143,10 @@ export default function NovoIngredientePage() {
     setPrecoUnitario('')
     setUnidadePreco('kg')
     setCategoria('talho')
+    setNomeFornecedor('')
+    setReferenciaFornecedor('')
+    setQuantidadeEmbalagem('')
+    setUnidadeEmbalagem('kg')
 
     setAGuardar(false)
   }
@@ -190,6 +233,59 @@ export default function NovoIngredientePage() {
               <select
                 value={unidadePreco}
                 onChange={(e) => setUnidadePreco(e.target.value)}
+                className="w-full border px-3 py-2 rounded bg-white"
+              >
+                {unidadesBase.map((unidade) => (
+                  <option key={unidade} value={unidade}>
+                    {unidade}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2 pt-2">
+              <h3 className="text-lg font-semibold">Dados do fornecedor</h3>
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">Nome do fornecedor</label>
+              <input
+                type="text"
+                value={nomeFornecedor}
+                onChange={(e) => setNomeFornecedor(e.target.value)}
+                className="w-full border px-3 py-2 rounded bg-white"
+                placeholder="Ex: Recheio"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">Referência do fornecedor</label>
+              <input
+                type="text"
+                value={referenciaFornecedor}
+                onChange={(e) => setReferenciaFornecedor(e.target.value)}
+                className="w-full border px-3 py-2 rounded bg-white"
+                placeholder="Ex: FRG-001"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">Quantidade da embalagem</label>
+              <input
+                type="number"
+                step="0.0001"
+                value={quantidadeEmbalagem}
+                onChange={(e) => setQuantidadeEmbalagem(e.target.value)}
+                className="w-full border px-3 py-2 rounded bg-white"
+                placeholder="Ex: 2"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">Unidade da embalagem</label>
+              <select
+                value={unidadeEmbalagem}
+                onChange={(e) => setUnidadeEmbalagem(e.target.value)}
                 className="w-full border px-3 py-2 rounded bg-white"
               >
                 {unidadesBase.map((unidade) => (
