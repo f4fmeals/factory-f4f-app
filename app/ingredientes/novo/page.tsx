@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 
 const unidadesBase = ['g', 'kg', 'ml', 'l', 'un']
@@ -21,15 +21,108 @@ export default function NovoIngredientePage() {
   const [unidadeBase, setUnidadeBase] = useState('g')
   const [precoUnitario, setPrecoUnitario] = useState('')
   const [unidadePreco, setUnidadePreco] = useState('kg')
-  const [categoria, setCategoria] = useState('talho')
+  const [categoria, setCategoria] = useState('')
 
   const [nomeFornecedor, setNomeFornecedor] = useState('')
   const [referenciaFornecedor, setReferenciaFornecedor] = useState('')
   const [quantidadeEmbalagem, setQuantidadeEmbalagem] = useState('')
   const [unidadeEmbalagem, setUnidadeEmbalagem] = useState('kg')
 
+  const [pesquisa, setPesquisa] = useState('')
+  const [ingredientesEncontrados, setIngredientesEncontrados] = useState([])
+  const [aPesquisar, setAPesquisar] = useState(false)
+
   const [aGuardar, setAGuardar] = useState(false)
   const [mensagem, setMensagem] = useState('')
+
+  useEffect(() => {
+    const texto = pesquisa.trim()
+
+    if (!texto) {
+      setIngredientesEncontrados([])
+      setAPesquisar(false)
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      pesquisarIngredientes(texto)
+    }, 300)
+
+    return () => clearTimeout(timeout)
+  }, [pesquisa])
+
+  async function pesquisarIngredientes(textoPesquisa) {
+    setAPesquisar(true)
+
+    const { data, error } = await supabase
+      .from('ingredientes')
+      .select(
+        `
+        id,
+        nome,
+        unidade_base,
+        categoria,
+        preco,
+        unidade_preco,
+        nome_fornecedor,
+        referencia_fornecedor,
+        quantidade_embalagem,
+        unidade_embalagem
+      `
+      )
+      .ilike('nome', `%${textoPesquisa}%`)
+      .order('nome', { ascending: true })
+      .limit(20)
+
+    if (error) {
+      console.log('Erro ao pesquisar ingredientes:', error)
+      setIngredientesEncontrados([])
+      setAPesquisar(false)
+      return
+    }
+
+    setIngredientesEncontrados(data || [])
+    setAPesquisar(false)
+  }
+
+  function preencherComBaseNoIngrediente(ingrediente) {
+    setNome('')
+    setUnidadeBase(ingrediente.unidade_base || 'g')
+    setCategoria(ingrediente.categoria || '')
+    setPrecoUnitario(
+      ingrediente.preco !== null && ingrediente.preco !== undefined
+        ? String(ingrediente.preco)
+        : ''
+    )
+    setUnidadePreco(ingrediente.unidade_preco || 'kg')
+    setNomeFornecedor(ingrediente.nome_fornecedor || '')
+    setReferenciaFornecedor(ingrediente.referencia_fornecedor || '')
+    setQuantidadeEmbalagem(
+      ingrediente.quantidade_embalagem !== null &&
+        ingrediente.quantidade_embalagem !== undefined
+        ? String(ingrediente.quantidade_embalagem)
+        : ''
+    )
+    setUnidadeEmbalagem(ingrediente.unidade_embalagem || 'kg')
+
+    setMensagem(
+      `Dados de "${ingrediente.nome}" carregados no formulário. Indica agora o nome do novo ingrediente.`
+    )
+
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function limparFormulario() {
+    setNome('')
+    setUnidadeBase('g')
+    setPrecoUnitario('')
+    setUnidadePreco('kg')
+    setCategoria('')
+    setNomeFornecedor('')
+    setReferenciaFornecedor('')
+    setQuantidadeEmbalagem('')
+    setUnidadeEmbalagem('kg')
+  }
 
   function validarFormulario() {
     if (!nome.trim()) return 'O nome do ingrediente é obrigatório.'
@@ -137,23 +230,15 @@ export default function NovoIngredientePage() {
     }
 
     setMensagem('Ingrediente guardado com sucesso!')
-
-    setNome('')
-    setUnidadeBase('g')
-    setPrecoUnitario('')
-    setUnidadePreco('kg')
-    setCategoria('talho')
-    setNomeFornecedor('')
-    setReferenciaFornecedor('')
-    setQuantidadeEmbalagem('')
-    setUnidadeEmbalagem('kg')
-
+    limparFormulario()
+    setPesquisa('')
+    setIngredientesEncontrados([])
     setAGuardar(false)
   }
 
   return (
     <main className="min-h-screen bg-white text-black p-8">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Novo ingrediente</h1>
 
@@ -170,6 +255,60 @@ export default function NovoIngredientePage() {
             <p>{mensagem}</p>
           </div>
         )}
+
+        <section className="border rounded p-6 bg-gray-50 mb-8">
+          <h2 className="text-2xl font-bold mb-4">Pesquisar ingredientes existentes</h2>
+
+          <div>
+            <label className="block mb-2 font-medium">Pesquisar por nome</label>
+            <input
+              type="text"
+              value={pesquisa}
+              onChange={(e) => setPesquisa(e.target.value)}
+              className="w-full border px-3 py-2 rounded bg-white"
+              placeholder="Ex: frango"
+            />
+          </div>
+
+          <div className="mt-4 p-4 rounded bg-white border">
+            <p className="text-sm text-gray-700">
+              Escreve o nome de um ingrediente para confirmar se já existe ou para
+              duplicar um ingrediente existente como base.
+            </p>
+          </div>
+
+          {pesquisa.trim() && (
+            <div className="mt-6 space-y-3">
+              {aPesquisar ? (
+                <div className="border rounded p-4 bg-white">
+                  <p>A pesquisar ingredientes...</p>
+                </div>
+              ) : ingredientesEncontrados.length === 0 ? (
+                <div className="border rounded p-4 bg-white">
+                  <p>Nenhum ingrediente encontrado.</p>
+                </div>
+              ) : (
+                ingredientesEncontrados.map((ingrediente) => (
+                  <div
+                    key={ingrediente.id}
+                    className="border rounded p-4 bg-white flex items-center justify-between gap-4"
+                  >
+                    <p className="font-semibold text-lg">{ingrediente.nome}</p>
+
+                    <button
+                      type="button"
+                      onClick={() => preencherComBaseNoIngrediente(ingrediente)}
+                      className="px-4 py-2 rounded font-medium text-white"
+                      style={{ backgroundColor: '#80c944' }}
+                    >
+                      Duplicar
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </section>
 
         <section className="border rounded p-6 bg-gray-50">
           <h2 className="text-2xl font-bold mb-4">Dados do ingrediente</h2>
@@ -208,6 +347,7 @@ export default function NovoIngredientePage() {
                 onChange={(e) => setCategoria(e.target.value)}
                 className="w-full border px-3 py-2 rounded bg-white"
               >
+                <option value="">Seleciona uma categoria</option>
                 {categoriasBase.map((item) => (
                   <option key={item} value={item}>
                     {item}
@@ -304,7 +444,7 @@ export default function NovoIngredientePage() {
             </p>
           </div>
 
-          <div className="flex gap-3 mt-6">
+          <div className="flex gap-3 mt-6 flex-wrap">
             <button
               type="button"
               onClick={guardarIngrediente}
@@ -313,6 +453,14 @@ export default function NovoIngredientePage() {
               style={{ backgroundColor: '#80c944' }}
             >
               {aGuardar ? 'A guardar...' : 'Guardar ingrediente'}
+            </button>
+
+            <button
+              type="button"
+              onClick={limparFormulario}
+              className="px-6 py-3 rounded bg-gray-200 text-black font-medium"
+            >
+              Limpar formulário
             </button>
 
             <Link
