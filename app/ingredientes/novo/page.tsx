@@ -16,6 +16,19 @@ const categoriasBase = [
   'outros',
 ]
 
+type Ingrediente = {
+  id: number | string
+  nome: string
+  unidade_base: string | null
+  categoria: string | null
+  preco: number | null
+  unidade_preco: string | null
+  nome_fornecedor: string | null
+  referencia_fornecedor: string | null
+  quantidade_embalagem: number | null
+  unidade_embalagem: string | null
+}
+
 export default function NovoIngredientePage() {
   const [nome, setNome] = useState('')
   const [unidadeBase, setUnidadeBase] = useState('g')
@@ -29,7 +42,7 @@ export default function NovoIngredientePage() {
   const [unidadeEmbalagem, setUnidadeEmbalagem] = useState('kg')
 
   const [pesquisa, setPesquisa] = useState('')
-  const [ingredientesEncontrados, setIngredientesEncontrados] = useState([])
+  const [ingredientesEncontrados, setIngredientesEncontrados] = useState<Ingrediente[]>([])
   const [aPesquisar, setAPesquisar] = useState(false)
 
   const [aGuardar, setAGuardar] = useState(false)
@@ -51,13 +64,12 @@ export default function NovoIngredientePage() {
     return () => clearTimeout(timeout)
   }, [pesquisa])
 
-  async function pesquisarIngredientes(textoPesquisa) {
+  async function pesquisarIngredientes(textoPesquisa: string) {
     setAPesquisar(true)
 
     const { data, error } = await supabase
       .from('ingredientes')
-      .select(
-        `
+      .select(`
         id,
         nome,
         unidade_base,
@@ -68,8 +80,7 @@ export default function NovoIngredientePage() {
         referencia_fornecedor,
         quantidade_embalagem,
         unidade_embalagem
-      `
-      )
+      `)
       .ilike('nome', `%${textoPesquisa}%`)
       .order('nome', { ascending: true })
       .limit(20)
@@ -81,11 +92,11 @@ export default function NovoIngredientePage() {
       return
     }
 
-    setIngredientesEncontrados(data || [])
+    setIngredientesEncontrados((data || []) as Ingrediente[])
     setAPesquisar(false)
   }
 
-  function preencherComBaseNoIngrediente(ingrediente) {
+  function preencherComBaseNoIngrediente(ingrediente: Ingrediente) {
     setNome('')
     setUnidadeBase(ingrediente.unidade_base || 'g')
     setCategoria(ingrediente.categoria || '')
