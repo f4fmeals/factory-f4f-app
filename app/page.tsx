@@ -1,5 +1,5 @@
 // @ts-nocheck
-// 
+//
 'use client'
 
 import Link from 'next/link'
@@ -2652,36 +2652,77 @@ export default function Home() {
           <h1 className="text-3xl font-bold">Gestão Cozinha Industrial</h1>
 
           <div className="flex gap-3 flex-wrap justify-end">
-            <Link
-              href="/ingredientes/novo"
-              className="text-white px-4 py-2 rounded font-medium"
-              style={{ backgroundColor: '#2563eb' }}
-            >
-              Novo ingrediente
-            </Link>
+            <div className="relative group">
+              <button
+                className="text-white px-4 py-2 rounded font-medium flex items-center gap-2"
+                style={{ backgroundColor: '#2563eb' }}
+              >
+                Ingredientes ▾
+              </button>
 
-            <Link
-              href="/componentes/novo"
-              className="text-white px-4 py-2 rounded font-medium"
-              style={{ backgroundColor: '#16a34a' }}
-            >
-              Novo componente
-            </Link>
+              <div className="absolute right-0 top-full w-52 bg-white border rounded shadow-md hidden group-hover:block z-50">
+                <Link
+                  href="/ingredientes/novo"
+                  className="block px-4 py-2 hover:bg-gray-100"
+                >
+                  Novo ingrediente
+                </Link>
+                <Link
+                  href="/ingredientes/editar"
+                  className="block px-4 py-2 hover:bg-gray-100"
+                >
+                  Editar ingredientes
+                </Link>
+              </div>
+            </div>
 
-            <Link
-              href="/pratos/novo"
-              className="text-white px-4 py-2 rounded font-medium"
-              style={{ backgroundColor: '#80c944' }}
-            >
-              Novo prato
-            </Link>
+            <div className="relative group">
+              <button
+                className="text-white px-4 py-2 rounded font-medium flex items-center gap-2"
+                style={{ backgroundColor: '#16a34a' }}
+              >
+                Componentes ▾
+              </button>
 
-            <Link
-              href="/pratos/editar"
-              className="px-4 py-2 rounded font-medium bg-gray-800 text-white"
-            >
-              Editar pratos
-            </Link>
+              <div className="absolute right-0 top-full w-52 bg-white border rounded shadow-md hidden group-hover:block z-50">
+                <Link
+                  href="/componentes/novo"
+                  className="block px-4 py-2 hover:bg-gray-100"
+                >
+                  Novo componente
+                </Link>
+                <Link
+                  href="/componentes/editar"
+                  className="block px-4 py-2 hover:bg-gray-100"
+                >
+                  Editar componentes
+                </Link>
+              </div>
+            </div>
+
+            <div className="relative group">
+              <button
+                className="text-white px-4 py-2 rounded font-medium flex items-center gap-2"
+                style={{ backgroundColor: '#80c944' }}
+              >
+                Pratos ▾
+              </button>
+
+              <div className="absolute right-0 top-full w-52 bg-white border rounded shadow-md hidden group-hover:block z-50">
+                <Link
+                  href="/pratos/novo"
+                  className="block px-4 py-2 hover:bg-gray-100"
+                >
+                  Novo prato
+                </Link>
+                <Link
+                  href="/pratos/editar"
+                  className="block px-4 py-2 hover:bg-gray-100"
+                >
+                  Editar pratos
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
 
