@@ -45,6 +45,13 @@ type ComponenteIngredienteCriado = {
   ingrediente_id: number
 }
 
+type ComponentePesquisa = {
+  id: number
+  nome: string
+  rendimento_final: number | null
+  unidade_rendimento: string | null
+}
+
 function gerarIdLocal() {
   return Math.random().toString(36).slice(2) + Date.now().toString()
 }
@@ -274,9 +281,119 @@ export default function NovoComponentePage() {
   const [aGuardar, setAGuardar] = useState(false)
   const [mensagem, setMensagem] = useState('')
 
+  const [pesquisaComponente, setPesquisaComponente] = useState('')
+  const [resultadosPesquisa, setResultadosPesquisa] = useState<ComponentePesquisa[]>([])
+  const [loadingPesquisa, setLoadingPesquisa] = useState(false)
+  const [mostrarPesquisa, setMostrarPesquisa] = useState(false)
+  const pesquisaWrapperRef = useRef<HTMLDivElement | null>(null)
+  const pesquisaDebounced = useDebouncedValue(pesquisaComponente, 300)
+
+  const [ingredientesPreparacaoRemovidos, setIngredientesPreparacaoRemovidos] =
+    useState<string[]>([])
+
   useEffect(() => {
     fetchIngredientes()
   }, [])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        pesquisaWrapperRef.current &&
+        event.target instanceof Node &&
+        !pesquisaWrapperRef.current.contains(event.target)
+      ) {
+        setMostrarPesquisa(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
+  useEffect(() => {
+    async function fetchComponentesPesquisa() {
+      const termo = pesquisaDebounced.trim()
+
+      if (!termo) {
+        setResultadosPesquisa([])
+        setLoadingPesquisa(false)
+        return
+      }
+
+      setLoadingPesquisa(true)
+
+      const { data, error } = await supabase
+        .from('componentes')
+        .select('id, nome, rendimento_final, unidade_rendimento')
+        .ilike('nome', `%${termo}%`)
+        .order('nome', { ascending: true })
+        .limit(8)
+
+      if (error) {
+        console.log('Erro ao pesquisar componentes:', error)
+        setResultadosPesquisa([])
+      } else {
+        setResultadosPesquisa((data as ComponentePesquisa[]) || [])
+      }
+
+      setLoadingPesquisa(false)
+    }
+
+    fetchComponentesPesquisa()
+  }, [pesquisaDebounced])
+
+  useEffect(() => {
+    const ingredienteIdsAtuais = Array.from(
+      new Set(
+        componentesIngredientes
+          .map((item) => item.ingrediente_id)
+          .filter((id) => id && id.trim() !== '')
+      )
+    )
+
+    setTarefasPreparacao((prev) => {
+      const tarefasFiltradas = prev.filter((item) => {
+        if (!item.ingrediente_id) return true
+        return ingredienteIdsAtuais.includes(item.ingrediente_id)
+      })
+
+      const ingredienteIdsJaNasTarefas = new Set(
+        tarefasFiltradas
+          .map((item) => item.ingrediente_id)
+          .filter((id) => id && id.trim() !== '')
+      )
+
+      const novos = ingredienteIdsAtuais
+        .filter(
+          (id) =>
+            !ingredienteIdsJaNasTarefas.has(id) &&
+            !ingredientesPreparacaoRemovidos.includes(id)
+        )
+        .map((ingrediente_id) => ({
+          idLocal: gerarIdLocal(),
+          ingrediente_id,
+          ordem: '',
+          tarefa: '',
+          observacoes: '',
+        }))
+
+      const resultado = [...tarefasFiltradas, ...novos]
+
+      return resultado.length > 0
+        ? resultado
+        : [
+            {
+              idLocal: gerarIdLocal(),
+              ingrediente_id: '',
+              ordem: '',
+              tarefa: '',
+              observacoes: '',
+            },
+          ]
+    })
+  }, [componentesIngredientes])
 
   async function fetchIngredientes() {
     setLoadingIngredientes(true)
@@ -302,6 +419,11 @@ export default function NovoComponentePage() {
     setNome('')
     setRendimentoFinal('')
     setUnidadeRendimento('g')
+    setMensagem('')
+    setPesquisaComponente('')
+    setResultadosPesquisa([])
+    setMostrarPesquisa(false)
+    setIngredientesPreparacaoRemovidos([])
 
     setComponentesIngredientes([
       {
@@ -620,6 +742,15 @@ export default function NovoComponentePage() {
   }
 
   function removerIngredienteComponente(idLocal: string) {
+    const itemRemovido = componentesIngredientes.find((item) => item.idLocal === idLocal)
+
+    if (itemRemovido?.ingrediente_id) {
+      setIngredientesPreparacaoRemovidos((prev) => {
+        if (prev.includes(itemRemovido.ingrediente_id)) return prev
+        return [...prev, itemRemovido.ingrediente_id]
+      })
+    }
+
     setComponentesIngredientes((prev) =>
       prev.filter((item) => item.idLocal !== idLocal)
     )
@@ -630,11 +761,29 @@ export default function NovoComponentePage() {
     campo: keyof ComponenteIngredienteForm,
     valor: string
   ) {
+    const ingredienteAntigo = componentesIngredientes.find(
+      (item) => item.idLocal === idLocal
+    )?.ingrediente_id
+
     setComponentesIngredientes((prev) =>
       prev.map((item) =>
         item.idLocal === idLocal ? { ...item, [campo]: valor } : item
       )
     )
+
+    if (campo === 'ingrediente_id') {
+      if (ingredienteAntigo && ingredienteAntigo !== valor) {
+        setIngredientesPreparacaoRemovidos((prev) =>
+          prev.filter((id) => id !== ingredienteAntigo)
+        )
+      }
+
+      if (valor) {
+        setIngredientesPreparacaoRemovidos((prev) =>
+          prev.filter((id) => id !== valor)
+        )
+      }
+    }
   }
 
   function adicionarTarefaPreparacao() {
@@ -651,9 +800,16 @@ export default function NovoComponentePage() {
   }
 
   function removerTarefaPreparacao(idLocal: string) {
-    setTarefasPreparacao((prev) =>
-      prev.filter((item) => item.idLocal !== idLocal)
-    )
+    const tarefa = tarefasPreparacao.find((item) => item.idLocal === idLocal)
+
+    if (tarefa?.ingrediente_id) {
+      setIngredientesPreparacaoRemovidos((prev) => {
+        if (prev.includes(tarefa.ingrediente_id)) return prev
+        return [...prev, tarefa.ingrediente_id]
+      })
+    }
+
+    setTarefasPreparacao((prev) => prev.filter((item) => item.idLocal !== idLocal))
   }
 
   function atualizarTarefaPreparacao(
@@ -661,11 +817,29 @@ export default function NovoComponentePage() {
     campo: keyof TarefaPreparacaoForm,
     valor: string
   ) {
+    const valorAnterior = tarefasPreparacao.find(
+      (item) => item.idLocal === idLocal
+    )?.ingrediente_id
+
     setTarefasPreparacao((prev) =>
       prev.map((item) =>
         item.idLocal === idLocal ? { ...item, [campo]: valor } : item
       )
     )
+
+    if (campo === 'ingrediente_id') {
+      if (valorAnterior) {
+        setIngredientesPreparacaoRemovidos((prev) =>
+          prev.filter((id) => id !== valorAnterior)
+        )
+      }
+
+      if (valor) {
+        setIngredientesPreparacaoRemovidos((prev) =>
+          prev.filter((id) => id !== valor)
+        )
+      }
+    }
   }
 
   function adicionarTarefaConfeccao() {
@@ -741,6 +915,58 @@ export default function NovoComponentePage() {
             Voltar
           </Link>
         </div>
+
+        <section className="border rounded p-6 bg-gray-50 mb-8">
+          <h2 className="text-2xl font-bold mb-4">Pesquisar componente existente</h2>
+
+          <div ref={pesquisaWrapperRef} className="relative">
+            <input
+              type="text"
+              value={pesquisaComponente}
+              onChange={(e) => {
+                setPesquisaComponente(e.target.value)
+                setMostrarPesquisa(true)
+              }}
+              onFocus={() => {
+                if (pesquisaComponente.trim()) {
+                  setMostrarPesquisa(true)
+                }
+              }}
+              className="w-full border px-3 py-2 rounded bg-white"
+              placeholder="Escreve para verificar se o componente já existe..."
+            />
+
+            {mostrarPesquisa && pesquisaComponente.trim() && (
+              <div className="absolute z-30 mt-1 w-full rounded border bg-white shadow-lg max-h-72 overflow-y-auto">
+                {loadingPesquisa && (
+                  <div className="px-3 py-2 text-sm text-gray-500">
+                    A pesquisar componentes...
+                  </div>
+                )}
+
+                {!loadingPesquisa && resultadosPesquisa.length === 0 && (
+                  <div className="px-3 py-2 text-sm text-gray-500">
+                    Nenhum componente encontrado.
+                  </div>
+                )}
+
+                {!loadingPesquisa &&
+                  resultadosPesquisa.map((comp) => (
+                    <div
+                      key={comp.id}
+                      className="px-3 py-3 border-b last:border-b-0"
+                    >
+                      <div className="font-medium">{comp.nome}</div>
+                      <div className="text-sm text-gray-600">
+                        {comp.rendimento_final ?? '-'}{' '}
+                        {comp.unidade_rendimento ?? ''}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        </section>
 
         {loadingIngredientes ? (
           <div className="border rounded p-4 bg-yellow-50 mb-6">
