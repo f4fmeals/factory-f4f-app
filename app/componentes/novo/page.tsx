@@ -52,6 +52,30 @@ type ComponentePesquisa = {
   unidade_rendimento: string | null
 }
 
+type ComponenteIngredienteDB = {
+  id: number
+  componente_id: number
+  ingrediente_id: number
+  quantidade: number | null
+  unidade: string | null
+}
+
+type TarefaPreparacaoDB = {
+  id: number
+  componente_ingrediente_id: number | null
+  ordem: number | null
+  tarefa: string | null
+  observacoes: string | null
+}
+
+type TarefaComponenteDB = {
+  id: number
+  componente_id: number
+  ordem: number | null
+  tarefa: string | null
+  observacoes: string | null
+}
+
 function gerarIdLocal() {
   return Math.random().toString(36).slice(2) + Date.now().toString()
 }
@@ -285,6 +309,8 @@ export default function NovoComponentePage() {
   const [resultadosPesquisa, setResultadosPesquisa] = useState<ComponentePesquisa[]>([])
   const [loadingPesquisa, setLoadingPesquisa] = useState(false)
   const [mostrarPesquisa, setMostrarPesquisa] = useState(false)
+  const [aDuplicar, setADuplicar] = useState<number | null>(null)
+
   const pesquisaWrapperRef = useRef<HTMLDivElement | null>(null)
   const pesquisaDebounced = useDebouncedValue(pesquisaComponente, 300)
 
@@ -393,7 +419,7 @@ export default function NovoComponentePage() {
             },
           ]
     })
-  }, [componentesIngredientes])
+  }, [componentesIngredientes, ingredientesPreparacaoRemovidos])
 
   async function fetchIngredientes() {
     setLoadingIngredientes(true)
@@ -424,6 +450,7 @@ export default function NovoComponentePage() {
     setResultadosPesquisa([])
     setMostrarPesquisa(false)
     setIngredientesPreparacaoRemovidos([])
+    setADuplicar(null)
 
     setComponentesIngredientes([
       {
@@ -502,6 +529,207 @@ export default function NovoComponentePage() {
     }
 
     return ''
+  }
+
+  async function duplicarComponente(componenteId: number) {
+    setMensagem('')
+    setADuplicar(componenteId)
+
+    try {
+      const { data: componenteBase, error: erroComponenteBase } = await supabase
+        .from('componentes')
+        .select('id, nome, rendimento_final, unidade_rendimento')
+        .eq('id', componenteId)
+        .single()
+
+      if (erroComponenteBase || !componenteBase) {
+        setMensagem(
+          `Erro ao carregar componente para duplicar: ${
+            erroComponenteBase?.message || 'sem detalhe'
+          }`
+        )
+        setADuplicar(null)
+        return
+      }
+
+      const { data: componentesIngredientesDB, error: erroIngredientes } = await supabase
+        .from('componente_ingredientes')
+        .select('id, componente_id, ingrediente_id, quantidade, unidade')
+        .eq('componente_id', componenteId)
+        .order('id', { ascending: true })
+
+      if (erroIngredientes) {
+        setMensagem(`Erro ao carregar ingredientes do componente: ${erroIngredientes.message}`)
+        setADuplicar(null)
+        return
+      }
+
+      const componenteIngredientesLista =
+        (componentesIngredientesDB as ComponenteIngredienteDB[]) || []
+
+      const mapaCompIngParaIngrediente = new Map<number, number>()
+      for (const item of componenteIngredientesLista) {
+        mapaCompIngParaIngrediente.set(item.id, item.ingrediente_id)
+      }
+
+      const { data: tarefasPreparacaoDB, error: erroPreparacao } = await supabase
+        .from('tarefas_preparacao_novo')
+        .select('id, componente_ingrediente_id, ordem, tarefa, observacoes')
+        .in(
+          'componente_ingrediente_id',
+          componenteIngredientesLista.length > 0
+            ? componenteIngredientesLista.map((item) => item.id)
+            : [-1]
+        )
+        .order('ordem', { ascending: true })
+
+      if (erroPreparacao) {
+        setMensagem(`Erro ao carregar tarefas de preparação: ${erroPreparacao.message}`)
+        setADuplicar(null)
+        return
+      }
+
+      const { data: tarefasConfeccaoDB, error: erroConfeccao } = await supabase
+        .from('tarefas_confeccao_novo')
+        .select('id, componente_id, ordem, tarefa, observacoes')
+        .eq('componente_id', componenteId)
+        .order('ordem', { ascending: true })
+
+      if (erroConfeccao) {
+        setMensagem(`Erro ao carregar tarefas de confeção: ${erroConfeccao.message}`)
+        setADuplicar(null)
+        return
+      }
+
+      const { data: tarefasFinalizacaoDB, error: erroFinalizacao } = await supabase
+        .from('tarefas_finalizacao_novo')
+        .select('id, componente_id, ordem, tarefa, observacoes')
+        .eq('componente_id', componenteId)
+        .order('ordem', { ascending: true })
+
+      if (erroFinalizacao) {
+        setMensagem(`Erro ao carregar tarefas de finalização: ${erroFinalizacao.message}`)
+        setADuplicar(null)
+        return
+      }
+
+      setNome(`${componenteBase.nome} (cópia)`)
+      setRendimentoFinal(
+        componenteBase.rendimento_final !== null &&
+          componenteBase.rendimento_final !== undefined
+          ? String(componenteBase.rendimento_final)
+          : ''
+      )
+      setUnidadeRendimento(componenteBase.unidade_rendimento || 'g')
+      setIngredientesPreparacaoRemovidos([])
+
+      const ingredientesForm: ComponenteIngredienteForm[] =
+        componenteIngredientesLista.length > 0
+          ? componenteIngredientesLista.map((item) => ({
+              idLocal: gerarIdLocal(),
+              ingrediente_id: item.ingrediente_id ? String(item.ingrediente_id) : '',
+              quantidade:
+                item.quantidade !== null && item.quantidade !== undefined
+                  ? String(item.quantidade)
+                  : '',
+              unidade: item.unidade || 'g',
+              observacoes: '',
+            }))
+          : [
+              {
+                idLocal: gerarIdLocal(),
+                ingrediente_id: '',
+                quantidade: '',
+                unidade: 'g',
+                observacoes: '',
+              },
+            ]
+
+      setComponentesIngredientes(ingredientesForm)
+
+      const tarefasPreparacaoForm: TarefaPreparacaoForm[] =
+        ((tarefasPreparacaoDB as TarefaPreparacaoDB[]) || []).length > 0
+          ? ((tarefasPreparacaoDB as TarefaPreparacaoDB[]) || []).map((item) => ({
+              idLocal: gerarIdLocal(),
+              ingrediente_id: item.componente_ingrediente_id
+                ? String(
+                    mapaCompIngParaIngrediente.get(item.componente_ingrediente_id) || ''
+                  )
+                : '',
+              ordem:
+                item.ordem !== null && item.ordem !== undefined ? String(item.ordem) : '',
+              tarefa: item.tarefa || '',
+              observacoes: item.observacoes || '',
+            }))
+          : componenteIngredientesLista.length > 0
+          ? componenteIngredientesLista.map((item) => ({
+              idLocal: gerarIdLocal(),
+              ingrediente_id: String(item.ingrediente_id),
+              ordem: '',
+              tarefa: '',
+              observacoes: '',
+            }))
+          : [
+              {
+                idLocal: gerarIdLocal(),
+                ingrediente_id: '',
+                ordem: '',
+                tarefa: '',
+                observacoes: '',
+              },
+            ]
+
+      setTarefasPreparacao(tarefasPreparacaoForm)
+
+      const tarefasConfeccaoForm: TarefaComponenteForm[] =
+        ((tarefasConfeccaoDB as TarefaComponenteDB[]) || []).length > 0
+          ? ((tarefasConfeccaoDB as TarefaComponenteDB[]) || []).map((item) => ({
+              idLocal: gerarIdLocal(),
+              ordem:
+                item.ordem !== null && item.ordem !== undefined ? String(item.ordem) : '',
+              tarefa: item.tarefa || '',
+              observacoes: item.observacoes || '',
+            }))
+          : [
+              {
+                idLocal: gerarIdLocal(),
+                ordem: '',
+                tarefa: '',
+                observacoes: '',
+              },
+            ]
+
+      setTarefasConfeccao(tarefasConfeccaoForm)
+
+      const tarefasFinalizacaoForm: TarefaComponenteForm[] =
+        ((tarefasFinalizacaoDB as TarefaComponenteDB[]) || []).length > 0
+          ? ((tarefasFinalizacaoDB as TarefaComponenteDB[]) || []).map((item) => ({
+              idLocal: gerarIdLocal(),
+              ordem:
+                item.ordem !== null && item.ordem !== undefined ? String(item.ordem) : '',
+              tarefa: item.tarefa || '',
+              observacoes: item.observacoes || '',
+            }))
+          : [
+              {
+                idLocal: gerarIdLocal(),
+                ordem: '',
+                tarefa: '',
+                observacoes: '',
+              },
+            ]
+
+      setTarefasFinalizacao(tarefasFinalizacaoForm)
+
+      setPesquisaComponente(componenteBase.nome)
+      setMostrarPesquisa(false)
+      setMensagem(`Componente "${componenteBase.nome}" duplicado para o formulário.`)
+    } catch (erro: any) {
+      console.log('ERRO INESPERADO duplicarComponente', erro)
+      setMensagem(`Erro inesperado ao duplicar: ${erro?.message || 'sem detalhe'}`)
+    } finally {
+      setADuplicar(null)
+    }
   }
 
   async function guardarComponente() {
@@ -954,13 +1182,24 @@ export default function NovoComponentePage() {
                   resultadosPesquisa.map((comp) => (
                     <div
                       key={comp.id}
-                      className="px-3 py-3 border-b last:border-b-0"
+                      className="px-3 py-3 border-b last:border-b-0 flex items-center justify-between gap-4"
                     >
-                      <div className="font-medium">{comp.nome}</div>
-                      <div className="text-sm text-gray-600">
-                        {comp.rendimento_final ?? '-'}{' '}
-                        {comp.unidade_rendimento ?? ''}
+                      <div className="min-w-0">
+                        <div className="font-medium">{comp.nome}</div>
+                        <div className="text-sm text-gray-600">
+                          {comp.rendimento_final ?? '-'} {comp.unidade_rendimento ?? ''}
+                        </div>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => duplicarComponente(comp.id)}
+                        disabled={aDuplicar === comp.id}
+                        className="shrink-0 px-4 py-2 rounded text-white font-medium disabled:opacity-60"
+                        style={{ backgroundColor: '#80c944' }}
+                      >
+                        {aDuplicar === comp.id ? 'A duplicar...' : 'Duplicar'}
+                      </button>
                     </div>
                   ))}
               </div>
