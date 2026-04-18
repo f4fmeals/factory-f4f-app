@@ -55,6 +55,160 @@ function useDebouncedValue<T>(value: T, delay = 300) {
   return debouncedValue
 }
 
+type SearchablePratoSelectProps = {
+  pratos: Prato[]
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  disabled?: boolean
+  minChars?: number
+}
+
+function SearchablePratoSelect({
+  pratos,
+  value,
+  onChange,
+  placeholder = 'Selecionar prato',
+  disabled = false,
+  minChars = 2,
+}: SearchablePratoSelectProps) {
+  const [aberto, setAberto] = useState(false)
+  const [pesquisa, setPesquisa] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const pratoSelecionado = useMemo(
+    () => pratos.find((item) => String(item.id) === String(value)),
+    [pratos, value]
+  )
+
+  const debouncedPesquisa = useDebouncedValue(pesquisa, 300)
+
+  const termo = debouncedPesquisa.trim().toLowerCase()
+  const podeMostrarResultados = termo.length >= minChars
+
+  const pratosFiltrados = useMemo(() => {
+    if (!podeMostrarResultados) return []
+
+    return pratos
+      .filter((item) => {
+        const nome = item.nome?.toLowerCase() || ''
+        const sku = item.sku?.toLowerCase() || ''
+        return nome.includes(termo) || sku.includes(termo)
+      })
+      .slice(0, 30)
+  }, [pratos, termo, podeMostrarResultados])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setAberto(false)
+        setPesquisa('')
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
+  function abrirDropdown() {
+    if (disabled) return
+    setAberto(true)
+
+    setTimeout(() => {
+      inputRef.current?.focus()
+    }, 0)
+  }
+
+  function selecionarPrato(id: string) {
+    onChange(id)
+    setAberto(false)
+    setPesquisa('')
+  }
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={abrirDropdown}
+        disabled={disabled}
+        className="w-full border px-3 py-2 rounded bg-white text-left flex items-center justify-between disabled:bg-gray-100 disabled:cursor-not-allowed"
+      >
+        <span className={pratoSelecionado ? 'text-black' : 'text-gray-500'}>
+          {pratoSelecionado
+            ? `${pratoSelecionado.nome} (${pratoSelecionado.sku})`
+            : placeholder}
+        </span>
+        <span className="ml-3 text-gray-500">▼</span>
+      </button>
+
+      {aberto && !disabled && (
+        <div className="absolute z-50 mt-1 w-full rounded border bg-white shadow-lg">
+          <div className="p-2 border-b">
+            <input
+              ref={inputRef}
+              type="text"
+              value={pesquisa}
+              onChange={(e) => setPesquisa(e.target.value)}
+              placeholder="Pesquisar por nome ou SKU..."
+              className="w-full border px-3 py-2 rounded outline-none"
+            />
+          </div>
+
+          <div className="max-h-60 overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => selecionarPrato('')}
+              className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b"
+            >
+              {placeholder}
+            </button>
+
+            {debouncedPesquisa !== pesquisa ? (
+              <div className="px-3 py-2 text-gray-500">
+                A aguardar a digitação...
+              </div>
+            ) : pratos.length === 0 ? (
+              <div className="px-3 py-2 text-gray-500">
+                Nenhum prato disponível.
+              </div>
+            ) : !podeMostrarResultados ? (
+              <div className="px-3 py-2 text-gray-500">
+                Escreve pelo menos {minChars} caracteres para pesquisar.
+              </div>
+            ) : pratosFiltrados.length > 0 ? (
+              pratosFiltrados.map((prato) => (
+                <button
+                  key={prato.id}
+                  type="button"
+                  onClick={() => selecionarPrato(String(prato.id))}
+                  className={`w-full text-left px-3 py-2 hover:bg-gray-100 ${
+                    String(value) === String(prato.id)
+                      ? 'bg-green-50 font-medium'
+                      : ''
+                  }`}
+                >
+                  <div>{prato.nome}</div>
+                  <div className="text-sm text-gray-500">{prato.sku}</div>
+                </button>
+              ))
+            ) : (
+              <div className="px-3 py-2 text-gray-500">
+                Nenhum prato encontrado.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 type SearchableComponenteSelectProps = {
   componentes: ComponenteBase[]
   value: string
@@ -639,22 +793,17 @@ export default function EditarPratosPage() {
 
               <div className="max-w-xl">
                 <label className="block mb-2 font-medium">Prato</label>
-                <select
+
+                <SearchablePratoSelect
+                  pratos={pratos}
                   value={pratoSelecionadoId}
-                  onChange={async (e) => {
-                    const novoId = e.target.value
+                  onChange={async (novoId) => {
                     setPratoSelecionadoId(novoId)
                     await carregarPratoCompleto(novoId)
                   }}
-                  className="w-full border px-3 py-2 rounded bg-white"
-                >
-                  <option value="">Selecionar prato</option>
-                  {pratos.map((prato) => (
-                    <option key={prato.id} value={prato.id}>
-                      {prato.nome} ({prato.sku})
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Selecionar prato"
+                  minChars={2}
+                />
               </div>
             </section>
 

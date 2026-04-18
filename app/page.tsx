@@ -170,7 +170,6 @@ type ListaPreparacaoIngrediente = {
 
 type ListaConfeccaoPrato = {
   chave: string
-  pratoId: number
   pratoNome: string
   prioridadeEmbalamento: number | null
   quantidadeComponente: number
@@ -195,6 +194,24 @@ type ListaConfeccaoGrupo = {
   prioridades: number[]
   pratos: ListaConfeccaoPrato[]
   tarefas: ListaConfeccaoTarefa[]
+}
+
+type ListaFinalizacaoTarefa = {
+  chave: string
+  id: number
+  ordem: number
+  tarefa: string
+  observacoes: string | null
+  componenteNome: string
+  quantidadeFinalComponente: number
+  unidade: string | null
+}
+
+type ListaFinalizacaoBloco = {
+  chave: string
+  pratoNome: string
+  quantidade: number
+  tarefas: ListaFinalizacaoTarefa[]
 }
 
 type LinhaEmbalamentoTamanho = {
@@ -1121,6 +1138,26 @@ export default function Home() {
     return quantidadeBaseIngrediente * fatorUso * doses
   }
 
+  function obterOrdemTamanho(tamanho: string | null | undefined) {
+    const t = normalizarTexto(tamanho)
+
+    if (t === 'm') return 1
+    if (t === 'l') return 2
+    if (t === 'xl') return 3
+    return 999
+  }
+
+  function ordenarTamanhoPadrao(
+    a: { tamanho: string },
+    b: { tamanho: string }
+  ) {
+    const ordemA = obterOrdemTamanho(a.tamanho)
+    const ordemB = obterOrdemTamanho(b.tamanho)
+
+    if (ordemA !== ordemB) return ordemA - ordemB
+    return String(a.tamanho || '').localeCompare(String(b.tamanho || ''))
+  }
+
   function exportarSecaoPDF(secao: SecaoExportacao) {
     if (!producaoSelecionada) {
       alert('Primeiro seleciona uma produção na aba Produção.')
@@ -1300,7 +1337,6 @@ export default function Home() {
             quantidadeIngredientePrato
 
           const pratoKey = [
-            pratoId,
             normalizarTexto(pratoNome),
             normalizarTexto(unidade),
           ].join('|')
@@ -1467,7 +1503,6 @@ export default function Home() {
         }
 
         const chavePrato = [
-          pratoId,
           normalizarTexto(pratoNome),
           normalizarTexto(unidade),
         ].join('|')
@@ -1475,7 +1510,6 @@ export default function Home() {
         if (!agrupado[chaveComponente].pratosMap[chavePrato]) {
           agrupado[chaveComponente].pratosMap[chavePrato] = {
             chave: chavePrato,
-            pratoId,
             pratoNome,
             prioridadeEmbalamento,
             quantidadeComponente: 0,
@@ -1485,6 +1519,19 @@ export default function Home() {
 
         agrupado[chaveComponente].pratosMap[chavePrato].quantidadeComponente +=
           quantidadeComponente
+
+        const prioridadeExistente =
+          agrupado[chaveComponente].pratosMap[chavePrato].prioridadeEmbalamento
+
+        if (
+          prioridadeEmbalamento !== null &&
+          (prioridadeExistente === null ||
+            prioridadeExistente === undefined ||
+            prioridadeEmbalamento < prioridadeExistente)
+        ) {
+          agrupado[chaveComponente].pratosMap[chavePrato].prioridadeEmbalamento =
+            prioridadeEmbalamento
+        }
 
         tarefasDoComponente.forEach((tarefa) => {
           const chaveTarefa = [
@@ -1538,14 +1585,39 @@ export default function Home() {
   }, [detalhesProducao, pratosComponentes, tarefasConfeccaoNovo])
 
   const listaFinalizacao = useMemo(() => {
-    return detalhesProducao.map((item) => {
+    const agrupado: Record<
+      string,
+      {
+        chave: string
+        pratoNome: string
+        quantidade: number
+        tarefasMap: Record<string, ListaFinalizacaoTarefa>
+      }
+    > = {}
+
+    detalhesProducao.forEach((item) => {
       const pratoId = Number(item.pratos?.id)
+      const pratoNome = item.pratos?.nome || 'Prato sem nome'
+      const quantidadeDoses = Number(item.quantidade || 0)
 
       const componentesDoPrato = pratosComponentes
         .filter((pc) => Number(pc.prato_id) === pratoId)
         .sort((a, b) => Number(a.ordem) - Number(b.ordem))
 
-      const tarefas = componentesDoPrato.flatMap((pratoComponente) => {
+      const chavePrato = normalizarTexto(pratoNome)
+
+      if (!agrupado[chavePrato]) {
+        agrupado[chavePrato] = {
+          chave: chavePrato,
+          pratoNome,
+          quantidade: 0,
+          tarefasMap: {},
+        }
+      }
+
+      agrupado[chavePrato].quantidade += quantidadeDoses
+
+      componentesDoPrato.forEach((pratoComponente) => {
         const tarefasDoComponente = tarefasFinalizacaoNovo
           .filter(
             (tarefa) =>
@@ -1553,22 +1625,54 @@ export default function Home() {
           )
           .sort((a, b) => Number(a.ordem) - Number(b.ordem))
 
-        return tarefasDoComponente.map((tarefa) => ({
-          ...tarefa,
-          componenteNome: pratoComponente.componentes?.nome || 'Componente',
-          quantidadeFinalComponente:
-            parseNumero(pratoComponente.quantidade_final) * Number(item.quantidade),
-          unidade: pratoComponente.unidade,
-        }))
-      })
+        tarefasDoComponente.forEach((tarefa) => {
+          const componenteNome = pratoComponente.componentes?.nome || 'Componente'
+          const unidade = pratoComponente.unidade
+          const quantidadeFinalComponente =
+            parseNumero(pratoComponente.quantidade_final) * quantidadeDoses
 
-      return {
-        pratoId,
-        pratoNome: item.pratos?.nome || 'Prato sem nome',
-        quantidade: item.quantidade,
-        tarefas,
-      }
+          const chaveTarefa = [
+            Number(tarefa.componente_id),
+            Number(tarefa.ordem || 0),
+            normalizarTexto(componenteNome),
+            normalizarTexto(tarefa.tarefa),
+            normalizarTexto(tarefa.observacoes || ''),
+            normalizarTexto(unidade),
+          ].join('|')
+
+          if (!agrupado[chavePrato].tarefasMap[chaveTarefa]) {
+            agrupado[chavePrato].tarefasMap[chaveTarefa] = {
+              chave: chaveTarefa,
+              id: Number(tarefa.id),
+              ordem: Number(tarefa.ordem) || 0,
+              tarefa: tarefa.tarefa,
+              observacoes: tarefa.observacoes,
+              componenteNome,
+              quantidadeFinalComponente: 0,
+              unidade,
+            }
+          }
+
+          agrupado[chavePrato].tarefasMap[chaveTarefa].quantidadeFinalComponente +=
+            quantidadeFinalComponente
+        })
+      })
     })
+
+    return Object.values(agrupado)
+      .map((bloco) => ({
+        chave: bloco.chave,
+        pratoNome: bloco.pratoNome,
+        quantidade: bloco.quantidade,
+        tarefas: Object.values(bloco.tarefasMap).sort((a, b) => {
+          if (a.ordem !== b.ordem) return a.ordem - b.ordem
+          if (a.componenteNome !== b.componenteNome) {
+            return a.componenteNome.localeCompare(b.componenteNome)
+          }
+          return a.tarefa.localeCompare(b.tarefa)
+        }),
+      }))
+      .sort((a, b) => a.pratoNome.localeCompare(b.pratoNome))
   }, [detalhesProducao, pratosComponentes, tarefasFinalizacaoNovo])
 
   const listaEmbalamento = useMemo(() => {
@@ -1617,9 +1721,7 @@ export default function Home() {
     return Object.values(agrupado)
       .map((grupo) => ({
         ...grupo,
-        tamanhos: grupo.tamanhos.sort((a, b) =>
-          a.tamanho.localeCompare(b.tamanho)
-        ),
+        tamanhos: grupo.tamanhos.sort(ordenarTamanhoPadrao),
       }))
       .sort((a, b) => {
         const prioridadeA = a.prioridade ?? 999
@@ -2273,7 +2375,7 @@ export default function Home() {
         ) : (
           <div className="space-y-6">
             {listaFinalizacao.map((bloco) => (
-              <div key={bloco.pratoId} className="border rounded p-4 bg-white">
+              <div key={bloco.chave} className="border rounded p-4 bg-white">
                 <p className="font-semibold mb-1">{bloco.pratoNome}</p>
                 <p className="text-sm text-gray-600 mb-4">
                   {bloco.quantidade} doses
@@ -2284,7 +2386,7 @@ export default function Home() {
                 ) : (
                   <div className="space-y-2">
                     {bloco.tarefas.map((tarefa) => (
-                      <div key={tarefa.id} className="border-b pb-2">
+                      <div key={tarefa.chave} className="border-b pb-2">
                         <p>
                           <strong>Componente:</strong> {tarefa.componenteNome}
                         </p>
@@ -2553,7 +2655,7 @@ export default function Home() {
                 <p>Sem dados de finalização.</p>
               ) : (
                 listaFinalizacao.map((bloco) => (
-                  <div key={bloco.pratoId} className="print-block">
+                  <div key={bloco.chave} className="print-block">
                     <h2>{bloco.pratoNome}</h2>
                     <p className="print-subtitle">{bloco.quantidade} doses</p>
 
@@ -2572,7 +2674,7 @@ export default function Home() {
                           </tr>
                         ) : (
                           bloco.tarefas.map((tarefa) => (
-                            <tr key={tarefa.id}>
+                            <tr key={tarefa.chave}>
                               <td>{tarefa.componenteNome}</td>
                               <td>{tarefa.tarefa}</td>
                               <td>
