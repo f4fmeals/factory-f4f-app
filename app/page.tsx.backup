@@ -252,16 +252,16 @@ export default function Home() {
   const [detalhesProducao, setDetalhesProducao] = useState<DetalheProducao[]>([])
   const [ingredientesInfo, setIngredientesInfo] = useState<IngredienteInfo[]>([])
   const [pratosComponentes, setPratosComponentes] = useState<PratoComponente[]>([])
-  const [componentesIngredientes, setComponentesIngredientes] = useState<
+  const [componentesIngredientes, setComponentesIngredientes] = useState<ComponenteIngrediente[]>([])
     ComponenteIngrediente[]
   >([])
-  const [tarefasPreparacaoNovo, setTarefasPreparacaoNovo] = useState<
+  const [tarefasPreparacaoNovo, setTarefasPreparacaoNovo] = useState
     TarefaPreparacaoNova[]
   >([])
-  const [tarefasConfeccaoNovo, setTarefasConfeccaoNovo] = useState<
+  const [tarefasConfeccaoNovo, setTarefasConfeccaoNovo] = useState
     TarefaConfeccaoNova[]
   >([])
-  const [tarefasFinalizacaoNovo, setTarefasFinalizacaoNovo] = useState<
+  const [tarefasFinalizacaoNovo, setTarefasFinalizacaoNovo] = useState
     TarefaFinalizacaoNova[]
   >([])
   const [aCarregarDetalhes, setACarregarDetalhes] = useState(false)
@@ -279,7 +279,7 @@ export default function Home() {
   const [pesquisaEdicao, setPesquisaEdicao] = useState('')
   const [loadingPesquisaEdicao, setLoadingPesquisaEdicao] = useState(false)
   const [pratosPesquisaEdicao, setPratosPesquisaEdicao] = useState<Prato[]>([])
-  const [quantidadesEdicaoAdicionar, setQuantidadesEdicaoAdicionar] = useState<
+  const [quantidadesEdicaoAdicionar, setQuantidadesEdicaoAdicionar] = useState
     Record<number, string>
   >({})
 
@@ -1263,14 +1263,14 @@ export default function Home() {
   }, [comprasPorSetor])
 
   const listaPreparacao = useMemo(() => {
-    const agrupado: Record<
+    const agrupado: Record
       string,
       {
         chave: string
         ingredienteNome: string
         quantidadeTotalIngrediente: number
         unidade: string | null
-        pratosMap: Record<
+        pratosMap: Record
           string,
           {
             chave: string
@@ -1427,7 +1427,7 @@ export default function Home() {
   ])
 
   const listaConfeccao = useMemo(() => {
-    const agrupado: Record<
+    const agrupado: Record
       string,
       {
         chave: string
@@ -1590,7 +1590,7 @@ export default function Home() {
   }, [detalhesProducao, pratosComponentes, tarefasConfeccaoNovo])
 
   const listaFinalizacao = useMemo(() => {
-    const agrupado: Record<
+    const agrupado: Record
       string,
       {
         chave: string
@@ -2754,20 +2754,11 @@ export default function Home() {
 
   return (
     <>
-      <main className="no-print min-h-screen bg-white text-black">
-        <div style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #e5e7eb', padding: '6px 32px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-          <button
-            onClick={handleLogout}
-            style={{ backgroundColor: 'transparent', border: 'none', color: '#6b7280', fontSize: '13px', cursor: 'pointer' }}
-          >
-            Sair da sessão
-          </button>
-        </div>
-        <div className="p-8">
+      <main className="no-print min-h-screen bg-white text-black p-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">Gestão Cozinha Industrial</h1>
 
-          <div className="flex gap-3 flex-wrap justify-end">
+          <div className="flex gap-3 flex-wrap justify-end items-center">
             <div className="relative group">
               <button
                 className="text-white px-4 py-2 rounded font-medium flex items-center gap-2"
@@ -2775,18 +2766,11 @@ export default function Home() {
               >
                 Ingredientes ▾
               </button>
-
               <div className="absolute right-0 top-full w-52 bg-white border rounded shadow-md hidden group-hover:block z-50">
-                <Link
-                  href="/ingredientes/novo"
-                  className="block px-4 py-2 hover:bg-gray-100"
-                >
+                <Link href="/ingredientes/novo" className="block px-4 py-2 hover:bg-gray-100">
                   Novo ingrediente
                 </Link>
-                <Link
-                  href="/ingredientes/editar"
-                  className="block px-4 py-2 hover:bg-gray-100"
-                >
+                <Link href="/ingredientes/editar" className="block px-4 py-2 hover:bg-gray-100">
                   Editar ingredientes
                 </Link>
               </div>
@@ -2799,18 +2783,11 @@ export default function Home() {
               >
                 Componentes ▾
               </button>
-
               <div className="absolute right-0 top-full w-52 bg-white border rounded shadow-md hidden group-hover:block z-50">
-                <Link
-                  href="/componentes/novo"
-                  className="block px-4 py-2 hover:bg-gray-100"
-                >
+                <Link href="/componentes/novo" className="block px-4 py-2 hover:bg-gray-100">
                   Novo componente
                 </Link>
-                <Link
-                  href="/componentes/editar"
-                  className="block px-4 py-2 hover:bg-gray-100"
-                >
+                <Link href="/componentes/editar" className="block px-4 py-2 hover:bg-gray-100">
                   Editar componentes
                 </Link>
               </div>
@@ -2823,23 +2800,22 @@ export default function Home() {
               >
                 Pratos ▾
               </button>
-
               <div className="absolute right-0 top-full w-52 bg-white border rounded shadow-md hidden group-hover:block z-50">
-                <Link
-                  href="/pratos/novo"
-                  className="block px-4 py-2 hover:bg-gray-100"
-                >
+                <Link href="/pratos/novo" className="block px-4 py-2 hover:bg-gray-100">
                   Novo prato
                 </Link>
-                <Link
-                  href="/pratos/editar"
-                  className="block px-4 py-2 hover:bg-gray-100"
-                >
+                <Link href="/pratos/editar" className="block px-4 py-2 hover:bg-gray-100">
                   Editar pratos
                 </Link>
               </div>
-
             </div>
+
+            <button
+              onClick={handleLogout}
+              className="bg-red-600 text-white px-4 py-2 rounded font-medium"
+            >
+              Logout
+            </button>
           </div>
         </div>
 
@@ -2914,46 +2890,24 @@ export default function Home() {
         <div className="border rounded p-4 bg-gray-50 mb-8">
           <div className="flex flex-wrap gap-2 items-center">
             <span className="font-semibold mr-2">Exportar PDF:</span>
-
-            <button
-              onClick={() => exportarSecaoPDF('compras')}
-              className="bg-gray-800 text-white px-4 py-2 rounded"
-            >
+            <button onClick={() => exportarSecaoPDF('compras')} className="bg-gray-800 text-white px-4 py-2 rounded">
               Compras
             </button>
-
-            <button
-              onClick={() => exportarSecaoPDF('preparacao')}
-              className="bg-gray-800 text-white px-4 py-2 rounded"
-            >
+            <button onClick={() => exportarSecaoPDF('preparacao')} className="bg-gray-800 text-white px-4 py-2 rounded">
               Preparação
             </button>
-
-            <button
-              onClick={() => exportarSecaoPDF('confeccao')}
-              className="bg-gray-800 text-white px-4 py-2 rounded"
-            >
+            <button onClick={() => exportarSecaoPDF('confeccao')} className="bg-gray-800 text-white px-4 py-2 rounded">
               Confeção
             </button>
-
-            <button
-              onClick={() => exportarSecaoPDF('finalizacao')}
-              className="bg-gray-800 text-white px-4 py-2 rounded"
-            >
+            <button onClick={() => exportarSecaoPDF('finalizacao')} className="bg-gray-800 text-white px-4 py-2 rounded">
               Finalização
             </button>
-
-            <button
-              onClick={() => exportarSecaoPDF('embalamento')}
-              className="bg-gray-800 text-white px-4 py-2 rounded"
-            >
+            <button onClick={() => exportarSecaoPDF('embalamento')} className="bg-gray-800 text-white px-4 py-2 rounded">
               Embalamento
             </button>
           </div>
-
           <p className="text-sm text-gray-600 mt-3">
-            Seleciona primeiro uma produção e depois escolhe a lista que queres
-            exportar em formato A4.
+            Seleciona primeiro uma produção e depois escolhe a lista que queres exportar em formato A4.
           </p>
         </div>
 
@@ -2963,7 +2917,6 @@ export default function Home() {
         {abaAtiva === 'confeccao' && renderConfeccao()}
         {abaAtiva === 'finalizacao' && renderFinalizacao()}
         {abaAtiva === 'embalamento' && renderEmbalamento()}
-        </div>
       </main>
 
       {renderAreaImpressao()}
