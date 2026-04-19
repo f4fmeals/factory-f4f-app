@@ -11,6 +11,7 @@ type Prato = {
   tamanho: string
   peso_final: number
   prioridade_embalamento: number | null
+  categoria_prato: string | null
 }
 
 type ComponenteBase = {
@@ -119,7 +120,6 @@ function SearchablePratoSelect({
   function abrirDropdown() {
     if (disabled) return
     setAberto(true)
-
     setTimeout(() => {
       inputRef.current?.focus()
     }, 0)
@@ -170,13 +170,9 @@ function SearchablePratoSelect({
             </button>
 
             {debouncedPesquisa !== pesquisa ? (
-              <div className="px-3 py-2 text-gray-500">
-                A aguardar a digitação...
-              </div>
+              <div className="px-3 py-2 text-gray-500">A aguardar a digitação...</div>
             ) : pratos.length === 0 ? (
-              <div className="px-3 py-2 text-gray-500">
-                Nenhum prato disponível.
-              </div>
+              <div className="px-3 py-2 text-gray-500">Nenhum prato disponível.</div>
             ) : !podeMostrarResultados ? (
               <div className="px-3 py-2 text-gray-500">
                 Escreve pelo menos {minChars} caracteres para pesquisar.
@@ -188,9 +184,7 @@ function SearchablePratoSelect({
                   type="button"
                   onClick={() => selecionarPrato(String(prato.id))}
                   className={`w-full text-left px-3 py-2 hover:bg-gray-100 ${
-                    String(value) === String(prato.id)
-                      ? 'bg-green-50 font-medium'
-                      : ''
+                    String(value) === String(prato.id) ? 'bg-green-50 font-medium' : ''
                   }`}
                 >
                   <div>{prato.nome}</div>
@@ -198,9 +192,7 @@ function SearchablePratoSelect({
                 </button>
               ))
             ) : (
-              <div className="px-3 py-2 text-gray-500">
-                Nenhum prato encontrado.
-              </div>
+              <div className="px-3 py-2 text-gray-500">Nenhum prato encontrado.</div>
             )}
           </div>
         </div>
@@ -238,9 +230,7 @@ function SearchableComponenteSelect({
 
   const componentesFiltrados = useMemo(() => {
     const termo = debouncedPesquisa.trim().toLowerCase()
-
     if (!termo) return componentes.slice(0, 30)
-
     return componentes
       .filter((item) => item.nome.toLowerCase().includes(termo))
       .slice(0, 30)
@@ -266,7 +256,6 @@ function SearchableComponenteSelect({
   function abrirDropdown() {
     if (disabled) return
     setAberto(true)
-
     setTimeout(() => {
       inputRef.current?.focus()
     }, 0)
@@ -315,13 +304,9 @@ function SearchableComponenteSelect({
             </button>
 
             {debouncedPesquisa !== pesquisa ? (
-              <div className="px-3 py-2 text-gray-500">
-                A aguardar a digitação...
-              </div>
+              <div className="px-3 py-2 text-gray-500">A aguardar a digitação...</div>
             ) : componentes.length === 0 ? (
-              <div className="px-3 py-2 text-gray-500">
-                Nenhum componente disponível.
-              </div>
+              <div className="px-3 py-2 text-gray-500">Nenhum componente disponível.</div>
             ) : componentesFiltrados.length > 0 ? (
               componentesFiltrados.map((componente) => (
                 <button
@@ -329,18 +314,14 @@ function SearchableComponenteSelect({
                   type="button"
                   onClick={() => selecionarComponente(String(componente.id))}
                   className={`w-full text-left px-3 py-2 hover:bg-gray-100 ${
-                    String(value) === String(componente.id)
-                      ? 'bg-green-50 font-medium'
-                      : ''
+                    String(value) === String(componente.id) ? 'bg-green-50 font-medium' : ''
                   }`}
                 >
                   {componente.nome}
                 </button>
               ))
             ) : (
-              <div className="px-3 py-2 text-gray-500">
-                Nenhum componente encontrado.
-              </div>
+              <div className="px-3 py-2 text-gray-500">Nenhum componente encontrado.</div>
             )}
           </div>
         </div>
@@ -351,6 +332,14 @@ function SearchableComponenteSelect({
 
 const unidades = ['g', 'kg', 'ml', 'l', 'un']
 const prioridades = [1, 2, 3]
+const categorias = [
+  'Pratos principais',
+  'Pratos leves',
+  'Pequenos almoços',
+  'Doces',
+  'Sumos',
+  'Unidoses',
+]
 
 export default function EditarPratosPage() {
   const [pratos, setPratos] = useState<Prato[]>([])
@@ -369,6 +358,7 @@ export default function EditarPratosPage() {
   const [tamanho, setTamanho] = useState('')
   const [pesoFinal, setPesoFinal] = useState('')
   const [prioridadeEmbalamento, setPrioridadeEmbalamento] = useState('1')
+  const [categoriaPrato, setCategoriaPrato] = useState('')
 
   const [componentesPrato, setComponentesPrato] = useState<ComponentePratoForm[]>([
     {
@@ -391,7 +381,7 @@ export default function EditarPratosPage() {
 
     const { data: pratosData, error: pratosError } = await supabase
       .from('pratos')
-      .select('id, nome, sku, tamanho, peso_final, prioridade_embalamento')
+      .select('id, nome, sku, tamanho, peso_final, prioridade_embalamento, categoria_prato')
       .order('nome', { ascending: true })
 
     const { data: componentesData, error: componentesError } = await supabase
@@ -428,7 +418,7 @@ export default function EditarPratosPage() {
     setTamanho('')
     setPesoFinal('')
     setPrioridadeEmbalamento('1')
-
+    setCategoriaPrato('')
     setComponentesPrato([
       {
         idLocal: gerarIdLocal(),
@@ -452,7 +442,7 @@ export default function EditarPratosPage() {
 
     const { data: pratoData, error: pratoError } = await supabase
       .from('pratos')
-      .select('id, nome, sku, tamanho, peso_final, prioridade_embalamento')
+      .select('id, nome, sku, tamanho, peso_final, prioridade_embalamento, categoria_prato')
       .eq('id', Number(pratoId))
       .single()
 
@@ -468,9 +458,7 @@ export default function EditarPratosPage() {
     const { data: pratoComponentesData, error: pratoComponentesError } =
       await supabase
         .from('pratos_componentes')
-        .select(
-          'id, prato_id, componente_id, quantidade_final, unidade, posicao_embalagem, ordem'
-        )
+        .select('id, prato_id, componente_id, quantidade_final, unidade, posicao_embalagem, ordem')
         .eq('prato_id', Number(pratoId))
         .order('ordem', { ascending: true })
 
@@ -486,16 +474,18 @@ export default function EditarPratosPage() {
     setTamanho(pratoData.tamanho || '')
     setPesoFinal(String(pratoData.peso_final || ''))
     setPrioridadeEmbalamento(String(pratoData.prioridade_embalamento || 1))
+    setCategoriaPrato(pratoData.categoria_prato || '')
 
-    const componentesPratoConvertidos = ((pratoComponentesData as PratoComponenteDB[]) || [])
-      .map((item) => ({
+    const componentesPratoConvertidos = ((pratoComponentesData as PratoComponenteDB[]) || []).map(
+      (item) => ({
         idLocal: gerarIdLocal(),
         componente_id: String(item.componente_id ?? ''),
         quantidade_final: String(item.quantidade_final ?? ''),
         unidade: item.unidade || 'g',
         posicao_embalagem: item.posicao_embalagem || '',
         ordem: String(item.ordem ?? ''),
-      }))
+      })
+    )
 
     setComponentesPrato(
       componentesPratoConvertidos.length > 0
@@ -546,15 +536,12 @@ export default function EditarPratosPage() {
       if (!item.componente_id) {
         return 'Todos os componentes do prato têm de ter um componente selecionado.'
       }
-
       if (!item.quantidade_final.trim() || Number(item.quantidade_final) <= 0) {
         return 'Todos os componentes do prato têm de ter quantidade final maior que 0.'
       }
-
       if (!item.unidade.trim()) {
         return 'Todos os componentes do prato têm de ter unidade.'
       }
-
       if (!item.ordem.trim() || Number(item.ordem) <= 0) {
         return 'Todos os componentes do prato têm de ter uma ordem maior que 0.'
       }
@@ -562,7 +549,6 @@ export default function EditarPratosPage() {
 
     const ids = componentesPreenchidos.map((item) => item.componente_id)
     const idsUnicos = new Set(ids)
-
     if (ids.length !== idsUnicos.size) {
       return 'Não podes repetir o mesmo componente no mesmo prato.'
     }
@@ -591,6 +577,7 @@ export default function EditarPratosPage() {
         tamanho: tamanho.trim(),
         peso_final: Number(pesoFinal),
         prioridade_embalamento: Number(prioridadeEmbalamento),
+        categoria_prato: categoriaPrato || null,
       })
       .eq('id', pratoId)
 
@@ -608,9 +595,7 @@ export default function EditarPratosPage() {
 
     if (erroDeletePratoComponentes) {
       console.log('Erro ao limpar pratos_componentes:', erroDeletePratoComponentes)
-      setMensagem(
-        `Erro ao limpar componentes antigos do prato: ${erroDeletePratoComponentes.message}`
-      )
+      setMensagem(`Erro ao limpar componentes antigos do prato: ${erroDeletePratoComponentes.message}`)
       setAGuardar(false)
       return
     }
@@ -633,9 +618,7 @@ export default function EditarPratosPage() {
       }))
 
     if (componentesValidos.length > 0) {
-      const { error } = await supabase
-        .from('pratos_componentes')
-        .insert(componentesValidos)
+      const { error } = await supabase.from('pratos_componentes').insert(componentesValidos)
 
       if (error) {
         console.log('Erro ao inserir pratos_componentes:', error)
@@ -738,17 +721,13 @@ export default function EditarPratosPage() {
     valor: string
   ) {
     setComponentesPrato((prev) =>
-      prev.map((item) =>
-        item.idLocal === idLocal ? { ...item, [campo]: valor } : item
-      )
+      prev.map((item) => (item.idLocal === idLocal ? { ...item, [campo]: valor } : item))
     )
   }
 
   const componentesSelecionados = useMemo(() => {
     return new Set(
-      componentesPrato
-        .map((item) => item.componente_id)
-        .filter((item) => item !== '')
+      componentesPrato.map((item) => item.componente_id).filter((item) => item !== '')
     )
   }, [componentesPrato])
 
@@ -757,7 +736,6 @@ export default function EditarPratosPage() {
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Editar pratos</h1>
-
           <div className="flex gap-3">
             <Link
               href="/pratos/novo"
@@ -766,11 +744,7 @@ export default function EditarPratosPage() {
             >
               Novo prato
             </Link>
-
-            <Link
-              href="/"
-              className="px-4 py-2 rounded bg-gray-200 text-black font-medium"
-            >
+            <Link href="/" className="px-4 py-2 rounded bg-gray-200 text-black font-medium">
               Voltar
             </Link>
           </div>
@@ -790,10 +764,8 @@ export default function EditarPratosPage() {
           <>
             <section className="border rounded p-6 bg-gray-50 mb-8">
               <h2 className="text-2xl font-bold mb-4">1. Escolher prato</h2>
-
               <div className="max-w-xl">
                 <label className="block mb-2 font-medium">Prato</label>
-
                 <SearchablePratoSelect
                   pratos={pratos}
                   value={pratoSelecionadoId}
@@ -817,7 +789,6 @@ export default function EditarPratosPage() {
                   <div className="space-y-8">
                     <section className="border rounded p-6 bg-gray-50">
                       <h2 className="text-2xl font-bold mb-4">2. Dados base do prato</h2>
-
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block mb-2 font-medium">Nome do prato</label>
@@ -828,7 +799,6 @@ export default function EditarPratosPage() {
                             className="w-full border px-3 py-2 rounded bg-white"
                           />
                         </div>
-
                         <div>
                           <label className="block mb-2 font-medium">SKU</label>
                           <input
@@ -838,7 +808,6 @@ export default function EditarPratosPage() {
                             className="w-full border px-3 py-2 rounded bg-white"
                           />
                         </div>
-
                         <div>
                           <label className="block mb-2 font-medium">Tamanho</label>
                           <input
@@ -848,7 +817,6 @@ export default function EditarPratosPage() {
                             className="w-full border px-3 py-2 rounded bg-white"
                           />
                         </div>
-
                         <div>
                           <label className="block mb-2 font-medium">Peso final</label>
                           <input
@@ -858,7 +826,6 @@ export default function EditarPratosPage() {
                             className="w-full border px-3 py-2 rounded bg-white"
                           />
                         </div>
-
                         <div>
                           <label className="block mb-2 font-medium">Prioridade de embalamento</label>
                           <select
@@ -869,6 +836,21 @@ export default function EditarPratosPage() {
                             {prioridades.map((prioridade) => (
                               <option key={prioridade} value={prioridade}>
                                 {prioridade}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block mb-2 font-medium">Categoria do prato</label>
+                          <select
+                            value={categoriaPrato}
+                            onChange={(e) => setCategoriaPrato(e.target.value)}
+                            className="w-full border px-3 py-2 rounded bg-white"
+                          >
+                            <option value="">Selecionar categoria</option>
+                            {categorias.map((categoria) => (
+                              <option key={categoria} value={categoria}>
+                                {categoria}
                               </option>
                             ))}
                           </select>
@@ -911,42 +893,28 @@ export default function EditarPratosPage() {
                                   componentes={componentesDaLinha}
                                   value={item.componente_id}
                                   onChange={(value) =>
-                                    atualizarComponentePrato(
-                                      item.idLocal,
-                                      'componente_id',
-                                      value
-                                    )
+                                    atualizarComponentePrato(item.idLocal, 'componente_id', value)
                                   }
                                   placeholder="Selecionar componente"
                                 />
                               </div>
-
                               <div>
                                 <label className="block mb-2 font-medium">Quantidade final</label>
                                 <input
                                   type="number"
                                   value={item.quantidade_final}
                                   onChange={(e) =>
-                                    atualizarComponentePrato(
-                                      item.idLocal,
-                                      'quantidade_final',
-                                      e.target.value
-                                    )
+                                    atualizarComponentePrato(item.idLocal, 'quantidade_final', e.target.value)
                                   }
                                   className="w-full border px-3 py-2 rounded"
                                 />
                               </div>
-
                               <div>
                                 <label className="block mb-2 font-medium">Unidade</label>
                                 <select
                                   value={item.unidade}
                                   onChange={(e) =>
-                                    atualizarComponentePrato(
-                                      item.idLocal,
-                                      'unidade',
-                                      e.target.value
-                                    )
+                                    atualizarComponentePrato(item.idLocal, 'unidade', e.target.value)
                                   }
                                   className="w-full border px-3 py-2 rounded bg-white"
                                 >
@@ -957,24 +925,18 @@ export default function EditarPratosPage() {
                                   ))}
                                 </select>
                               </div>
-
                               <div>
                                 <label className="block mb-2 font-medium">Posição na embalagem</label>
                                 <input
                                   type="text"
                                   value={item.posicao_embalagem}
                                   onChange={(e) =>
-                                    atualizarComponentePrato(
-                                      item.idLocal,
-                                      'posicao_embalagem',
-                                      e.target.value
-                                    )
+                                    atualizarComponentePrato(item.idLocal, 'posicao_embalagem', e.target.value)
                                   }
                                   className="w-full border px-3 py-2 rounded"
                                   placeholder="Ex: esquerda / direita / por cima"
                                 />
                               </div>
-
                               <div>
                                 <label className="block mb-2 font-medium">Ordem</label>
                                 <div className="flex gap-2">
@@ -982,11 +944,7 @@ export default function EditarPratosPage() {
                                     type="number"
                                     value={item.ordem}
                                     onChange={(e) =>
-                                      atualizarComponentePrato(
-                                        item.idLocal,
-                                        'ordem',
-                                        e.target.value
-                                      )
+                                      atualizarComponentePrato(item.idLocal, 'ordem', e.target.value)
                                     }
                                     className="w-full border px-3 py-2 rounded"
                                   />
@@ -1015,7 +973,6 @@ export default function EditarPratosPage() {
                       >
                         {aGuardar ? 'A guardar...' : 'Guardar alterações'}
                       </button>
-
                       <button
                         type="button"
                         onClick={eliminarPratoCompleto}

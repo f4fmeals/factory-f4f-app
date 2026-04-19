@@ -92,9 +92,7 @@ function SearchableComponenteSelect({
 
   const componentesFiltrados = useMemo(() => {
     const termo = debouncedPesquisa.trim().toLowerCase()
-
     if (!termo) return componentes.slice(0, 30)
-
     return componentes
       .filter((item) => item.nome.toLowerCase().includes(termo))
       .slice(0, 30)
@@ -120,7 +118,6 @@ function SearchableComponenteSelect({
   function abrirDropdown() {
     if (disabled) return
     setAberto(true)
-
     setTimeout(() => {
       inputRef.current?.focus()
     }, 0)
@@ -169,13 +166,9 @@ function SearchableComponenteSelect({
             </button>
 
             {debouncedPesquisa !== pesquisa ? (
-              <div className="px-3 py-2 text-gray-500">
-                A aguardar a digitação...
-              </div>
+              <div className="px-3 py-2 text-gray-500">A aguardar a digitação...</div>
             ) : componentes.length === 0 ? (
-              <div className="px-3 py-2 text-gray-500">
-                Nenhum componente disponível.
-              </div>
+              <div className="px-3 py-2 text-gray-500">Nenhum componente disponível.</div>
             ) : componentesFiltrados.length > 0 ? (
               componentesFiltrados.map((componente) => (
                 <button
@@ -183,18 +176,14 @@ function SearchableComponenteSelect({
                   type="button"
                   onClick={() => selecionarComponente(String(componente.id))}
                   className={`w-full text-left px-3 py-2 hover:bg-gray-100 ${
-                    String(value) === String(componente.id)
-                      ? 'bg-green-50 font-medium'
-                      : ''
+                    String(value) === String(componente.id) ? 'bg-green-50 font-medium' : ''
                   }`}
                 >
                   {componente.nome}
                 </button>
               ))
             ) : (
-              <div className="px-3 py-2 text-gray-500">
-                Nenhum componente encontrado.
-              </div>
+              <div className="px-3 py-2 text-gray-500">Nenhum componente encontrado.</div>
             )}
           </div>
         </div>
@@ -232,19 +221,13 @@ function SearchablePratoSelect({
 
   const pratosFiltrados = useMemo(() => {
     const termo = debouncedPesquisa.trim().toLowerCase()
-
     if (termo.length < 3) return []
-
     return pratos
       .filter((item) => {
         const nome = item.nome?.toLowerCase() || ''
         const sku = item.sku?.toLowerCase() || ''
         const tamanho = item.tamanho?.toLowerCase() || ''
-        return (
-          nome.includes(termo) ||
-          sku.includes(termo) ||
-          tamanho.includes(termo)
-        )
+        return nome.includes(termo) || sku.includes(termo) || tamanho.includes(termo)
       })
       .slice(0, 30)
   }, [pratos, debouncedPesquisa])
@@ -269,7 +252,6 @@ function SearchablePratoSelect({
   function abrirDropdown() {
     if (disabled) return
     setAberto(true)
-
     setTimeout(() => {
       inputRef.current?.focus()
     }, 0)
@@ -320,9 +302,7 @@ function SearchablePratoSelect({
             </button>
 
             {debouncedPesquisa !== pesquisa ? (
-              <div className="px-3 py-2 text-gray-500">
-                A aguardar a digitação...
-              </div>
+              <div className="px-3 py-2 text-gray-500">A aguardar a digitação...</div>
             ) : debouncedPesquisa.trim().length < 3 ? (
               <div className="px-3 py-2 text-gray-500">
                 Introduz pelo menos 3 letras para pesquisar pratos.
@@ -334,9 +314,7 @@ function SearchablePratoSelect({
                   type="button"
                   onClick={() => selecionarPrato(String(prato.id))}
                   className={`w-full text-left px-3 py-2 hover:bg-gray-100 ${
-                    String(value) === String(prato.id)
-                      ? 'bg-green-50 font-medium'
-                      : ''
+                    String(value) === String(prato.id) ? 'bg-green-50 font-medium' : ''
                   }`}
                 >
                   {prato.nome} {prato.tamanho ? `(${prato.tamanho})` : ''}
@@ -344,9 +322,7 @@ function SearchablePratoSelect({
                 </button>
               ))
             ) : (
-              <div className="px-3 py-2 text-gray-500">
-                Nenhum prato encontrado.
-              </div>
+              <div className="px-3 py-2 text-gray-500">Nenhum prato encontrado.</div>
             )}
           </div>
         </div>
@@ -363,6 +339,7 @@ const categoriasPrato = [
   'Pequenos almoços',
   'Doces',
   'Sumos',
+  'Unidoses',
 ]
 
 export default function NovoPratoPage() {
@@ -530,9 +507,7 @@ export default function NovoPratoPage() {
     setCategoriaPrato(prato.categoria_prato || '')
     setPesoFinal(prato.peso_final ? String(prato.peso_final) : '')
     setPrioridadeEmbalamento(
-      prato.prioridade_embalamento
-        ? String(prato.prioridade_embalamento)
-        : '1'
+      prato.prioridade_embalamento ? String(prato.prioridade_embalamento) : '1'
     )
 
     if (prato.pratos_componentes?.length > 0) {
@@ -596,15 +571,12 @@ export default function NovoPratoPage() {
       if (!item.componente_id) {
         return 'Todos os componentes do prato têm de ter um componente selecionado.'
       }
-
       if (!item.quantidade_final.trim() || Number(item.quantidade_final) <= 0) {
         return 'Todos os componentes do prato têm de ter quantidade final maior que 0.'
       }
-
       if (!item.unidade.trim()) {
         return 'Todos os componentes do prato têm de ter unidade.'
       }
-
       if (!item.ordem.trim() || Number(item.ordem) <= 0) {
         return 'Todos os componentes do prato têm de ter uma ordem maior que 0.'
       }
@@ -612,7 +584,6 @@ export default function NovoPratoPage() {
 
     const ids = componentesPreenchidos.map((item) => item.componente_id)
     const idsUnicos = new Set(ids)
-
     if (ids.length !== idsUnicos.size) {
       return 'Não podes repetir o mesmo componente no mesmo prato.'
     }
@@ -694,9 +665,7 @@ export default function NovoPratoPage() {
 
   const componentesSelecionados = useMemo(() => {
     return new Set(
-      componentesPrato
-        .map((item) => item.componente_id)
-        .filter((item) => item !== '')
+      componentesPrato.map((item) => item.componente_id).filter((item) => item !== '')
     )
   }, [componentesPrato])
 
@@ -705,11 +674,7 @@ export default function NovoPratoPage() {
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Novo prato</h1>
-
-          <Link
-            href="/"
-            className="px-4 py-2 rounded bg-gray-200 text-black font-medium"
-          >
+          <Link href="/" className="px-4 py-2 rounded bg-gray-200 text-black font-medium">
             Voltar
           </Link>
         </div>
@@ -733,7 +698,6 @@ export default function NovoPratoPage() {
         <div className="space-y-8">
           <section className="border rounded p-6 bg-gray-100">
             <h2 className="text-2xl font-bold mb-4">0. Criar a partir de prato existente</h2>
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
               <div className="md:col-span-2">
                 <label className="block mb-2 font-medium">Escolher prato</label>
@@ -745,7 +709,6 @@ export default function NovoPratoPage() {
                   disabled={loadingDados || pratosBase.length === 0 || aCopiarPrato}
                 />
               </div>
-
               <div>
                 <button
                   type="button"
@@ -761,7 +724,6 @@ export default function NovoPratoPage() {
 
           <section className="border rounded p-6 bg-gray-50">
             <h2 className="text-2xl font-bold mb-4">1. Dados base do prato</h2>
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block mb-2 font-medium">Nome do prato</label>
@@ -773,7 +735,6 @@ export default function NovoPratoPage() {
                   placeholder="Ex: Frango com arroz"
                 />
               </div>
-
               <div>
                 <label className="block mb-2 font-medium">SKU</label>
                 <input
@@ -784,7 +745,6 @@ export default function NovoPratoPage() {
                   placeholder="Ex: FRANGO-ARROZ-L"
                 />
               </div>
-
               <div>
                 <label className="block mb-2 font-medium">Tamanho</label>
                 <input
@@ -795,7 +755,6 @@ export default function NovoPratoPage() {
                   placeholder="Ex: L"
                 />
               </div>
-
               <div>
                 <label className="block mb-2 font-medium">Categoria do prato</label>
                 <select
@@ -811,7 +770,6 @@ export default function NovoPratoPage() {
                   ))}
                 </select>
               </div>
-
               <div>
                 <label className="block mb-2 font-medium">Peso final</label>
                 <input
@@ -822,7 +780,6 @@ export default function NovoPratoPage() {
                   placeholder="Ex: 350"
                 />
               </div>
-
               <div>
                 <label className="block mb-2 font-medium">Prioridade de embalamento</label>
                 <select
@@ -843,7 +800,6 @@ export default function NovoPratoPage() {
           <section className="border rounded p-6 bg-gray-50">
             <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
               <h2 className="text-2xl font-bold">2. Componentes do prato</h2>
-
               <div className="flex gap-3 flex-wrap">
                 <button
                   type="button"
@@ -884,24 +840,18 @@ export default function NovoPratoPage() {
                         disabled={loadingDados}
                       />
                     </div>
-
                     <div>
                       <label className="block mb-2 font-medium">Quantidade final</label>
                       <input
                         type="number"
                         value={item.quantidade_final}
                         onChange={(e) =>
-                          atualizarComponentePrato(
-                            item.idLocal,
-                            'quantidade_final',
-                            e.target.value
-                          )
+                          atualizarComponentePrato(item.idLocal, 'quantidade_final', e.target.value)
                         }
                         className="w-full border px-3 py-2 rounded"
                         placeholder="Ex: 120"
                       />
                     </div>
-
                     <div>
                       <label className="block mb-2 font-medium">Unidade</label>
                       <select
@@ -918,24 +868,18 @@ export default function NovoPratoPage() {
                         ))}
                       </select>
                     </div>
-
                     <div>
                       <label className="block mb-2 font-medium">Posição na embalagem</label>
                       <input
                         type="text"
                         value={item.posicao_embalagem}
                         onChange={(e) =>
-                          atualizarComponentePrato(
-                            item.idLocal,
-                            'posicao_embalagem',
-                            e.target.value
-                          )
+                          atualizarComponentePrato(item.idLocal, 'posicao_embalagem', e.target.value)
                         }
                         className="w-full border px-3 py-2 rounded"
                         placeholder="Ex: esquerda / direita / por cima"
                       />
                     </div>
-
                     <div>
                       <label className="block mb-2 font-medium">Ordem</label>
                       <div className="flex gap-2">
@@ -973,7 +917,6 @@ export default function NovoPratoPage() {
             >
               {aGuardar ? 'A guardar...' : 'Guardar prato'}
             </button>
-
             <button
               type="button"
               onClick={limparFormulario}
@@ -981,7 +924,6 @@ export default function NovoPratoPage() {
             >
               Limpar
             </button>
-
             <Link
               href="/"
               className="px-6 py-3 rounded bg-gray-200 text-black font-medium"
