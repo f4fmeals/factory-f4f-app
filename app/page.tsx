@@ -73,6 +73,8 @@ type IngredienteInfo = {
   unidade_preco: string | null
   categoria: string | null
   nome_fornecedor: string | null
+  quantidade_embalagem: number | string | null
+  unidade_embalagem: string | null
 }
 
 type PratoComponente = {
@@ -139,9 +141,8 @@ type ItemPlanoEdicao = {
   categoria_prato: string | null
 }
 
-// Grupo de pratos com mesmo nome (vários tamanhos num único cartão)
 type GrupoPrato = {
-  chaveGrupo: string // nome normalizado
+  chaveGrupo: string
   nome: string
   categoria_prato: string | null
   tamanhos: ItemPlanoEdicao[]
@@ -156,7 +157,8 @@ type CompraAgrupada = {
   unidade_preco: string | null
   custo_total: number
   nome_fornecedor: string | null
-  // para secção Talho: pratos agrupados por nome (sem tamanho)
+  quantidade_embalagem: number | null
+  unidade_embalagem: string | null
   pratosTalho: Record<string, { pratoNome: string; quantidade: number; unidade: string | null }>
 }
 
@@ -267,6 +269,62 @@ function obterCoresCategoria(categoria: string | null) {
   return CORES_CATEGORIA[categoria] || { bg: '#f3f4f6', textoPrincipal: '#111827', textoSecundario: '#6b7280' }
 }
 
+// ─── Componente fora do Home para evitar re-criação a cada render ───────────
+function SortableCartaoGrupo({
+  grupo,
+  onRemover,
+  onAtualizarQuantidade,
+}: {
+  grupo: GrupoPrato
+  onRemover: () => void
+  onAtualizarQuantidade: (pratoId: number, valor: string) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: grupo.chaveGrupo })
+  const cores = obterCoresCategoria(grupo.categoria_prato)
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    background: cores.bg,
+    borderRadius: '8px',
+    padding: '9px 11px',
+    position: 'relative' as const,
+    cursor: 'grab',
+  }
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <button
+        onClick={(e) => { e.stopPropagation(); onRemover() }}
+        style={{ position: 'absolute', top: '5px', right: '7px', background: 'transparent', border: 'none', fontSize: '13px', color: cores.textoSecundario, cursor: 'pointer', lineHeight: 1, zIndex: 1 }}
+      >×</button>
+      <p style={{ fontSize: '9px', color: cores.textoSecundario, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{grupo.categoria_prato || 'Sem categoria'}</p>
+      <p style={{ fontSize: '12px', color: cores.textoPrincipal, fontWeight: '600', margin: '0 0 5px' }}>{grupo.nome}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+        {grupo.tamanhos.map((item) => (
+          <div key={item.prato_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '10px', color: cores.textoSecundario }}>{item.tamanho} · {item.sku}</span>
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: '3px' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                type="number"
+                min="1"
+                value={item.quantidade}
+                onChange={(e) => onAtualizarQuantidade(item.prato_id, e.target.value)}
+                onPointerDown={(e) => e.stopPropagation()}
+                style={{ width: '50px', border: '1px solid #d1d5db', padding: '2px 4px', borderRadius: '4px', fontSize: '10px', color: '#111', background: '#fff' }}
+              />
+              <span style={{ fontSize: '10px', color: cores.textoSecundario }}>doses</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 export default function Home() {
   const [abaAtiva, setAbaAtiva] = useState<AbaAtiva>('producao')
   const [novaProducaoAberta, setNovaProducaoAberta] = useState(false)
@@ -274,7 +332,6 @@ export default function Home() {
 
   const [pratos, setPratos] = useState<Prato[]>([])
   const [producoes, setProducoes] = useState<ProducaoSemanal[]>([])
-  // resumo de categorias por producao_id: { [producaoId]: { [categoria]: count } }
   const [resumoProducoes, setResumoProducoes] = useState<Record<number, Record<string, number>>>({})
   const [pesquisa, setPesquisa] = useState('')
   const [loading, setLoading] = useState(false)
@@ -299,7 +356,7 @@ export default function Home() {
 
   const [planoEditandoId, setPlanoEditandoId] = useState<number | null>(null)
   const [itensPlanoEdicao, setItensPlanoEdicao] = useState<ItemPlanoEdicao[]>([])
-  const [ordemGrupos, setOrdemGrupos] = useState<string[]>([]) // ordem dos grupos por chaveGrupo
+  const [ordemGrupos, setOrdemGrupos] = useState<string[]>([])
   const [aGuardarItensPlano, setAGuardarItensPlano] = useState(false)
   const [pesquisaEdicao, setPesquisaEdicao] = useState('')
   const [loadingPesquisaEdicao, setLoadingPesquisaEdicao] = useState(false)
@@ -321,7 +378,6 @@ export default function Home() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
-  // Agrupa itensPlanoEdicao por nome, respeitando a ordemGrupos
   const gruposPlanoEdicao = useMemo<GrupoPrato[]>(() => {
     const mapa: Record<string, GrupoPrato> = {}
     itensPlanoEdicao.forEach((item) => {
@@ -329,11 +385,9 @@ export default function Home() {
       if (!mapa[chave]) mapa[chave] = { chaveGrupo: chave, nome: item.nome, categoria_prato: item.categoria_prato, tamanhos: [] }
       mapa[chave].tamanhos.push(item)
     })
-    // ordenar tamanhos dentro de cada grupo
     Object.values(mapa).forEach((g) => {
       g.tamanhos.sort((a, b) => obterOrdemTamanho(a.tamanho) - obterOrdemTamanho(b.tamanho))
     })
-    // respeitar ordemGrupos, adicionar novos no fim
     const chavesExistentes = Object.keys(mapa)
     const ordenadas = [
       ...ordemGrupos.filter((c) => mapa[c]),
@@ -342,7 +396,6 @@ export default function Home() {
     return ordenadas.map((c) => mapa[c])
   }, [itensPlanoEdicao, ordemGrupos])
 
-  // Agrupa detalhesProducao por nome para a vista de detalhes
   const gruposDetalhes = useMemo(() => {
     const mapa: Record<string, { chaveGrupo: string; nome: string; categoria_prato: string | null; tamanhos: { id: number; tamanho: string; sku: string; quantidade: number }[] }> = {}
     detalhesProducao.forEach((item) => {
@@ -378,6 +431,15 @@ export default function Home() {
     window.addEventListener('afterprint', limparDepoisImpressao)
     return () => window.removeEventListener('afterprint', limparDepoisImpressao)
   }, [])
+
+  useEffect(() => {
+    if (planoEditandoId !== null) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [planoEditandoId])
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -417,13 +479,11 @@ export default function Home() {
     const { data, error } = await supabase.from('producoes_semanais').select('*').order('id', { ascending: false })
     if (!error) {
       setProducoes((data as ProducaoSemanal[]) || [])
-      // carregar resumo de categorias para todos os planos
       const { data: itensData } = await supabase
         .from('producoes_semanais_itens')
         .select('producao_semanal_id, pratos (nome, categoria_prato)')
       if (itensData) {
         const resumo: Record<number, Record<string, number>> = {}
-        // agrupar por producao_id, depois por nome único de prato
         const porProducao: Record<number, Record<string, string>> = {}
         ;(itensData as any[]).forEach((item) => {
           const pid = Number(item.producao_semanal_id)
@@ -431,7 +491,6 @@ export default function Home() {
           const categoria = item.pratos?.categoria_prato || 'Outros'
           const chave = nome.trim().toLowerCase()
           if (!porProducao[pid]) porProducao[pid] = {}
-          // só conta uma vez por nome único
           if (!porProducao[pid][chave]) {
             porProducao[pid][chave] = categoria
           }
@@ -547,10 +606,9 @@ export default function Home() {
       .order('ordem', { ascending: true })
     setTarefasFinalizacaoNovo((tarefasFinalizacaoData as TarefaFinalizacaoNova[]) || [])
     const ingredienteIds = Array.from(new Set(((componentesIngredientesData as ComponenteIngrediente[]) || []).map((item) => Number(item.ingrediente_id)).filter((id) => !isNaN(id))))
-    // ALTERAÇÃO: incluir nome_fornecedor na query
     const { data: ingredientesInfoData } = await supabase
       .from('ingredientes')
-      .select('id, nome, unidade_base, taxa_perda_padrao, preco, unidade_preco, categoria, nome_fornecedor')
+      .select('id, nome, unidade_base, taxa_perda_padrao, preco, unidade_preco, categoria, nome_fornecedor, quantidade_embalagem, unidade_embalagem')
       .in('id', ingredienteIds.length > 0 ? ingredienteIds : [-1])
     setIngredientesInfo((ingredientesInfoData as IngredienteInfo[]) || [])
     setACarregarDetalhes(false)
@@ -581,7 +639,6 @@ export default function Home() {
         categoria_prato: item.pratos.categoria_prato || null,
       }))
     setItensPlanoEdicao(itensConvertidos)
-    // inicializar ordem dos grupos pela ordem de chegada
     const chavesIniciais: string[] = []
     itensConvertidos.forEach((item) => {
       const chave = item.nome.trim().toLowerCase()
@@ -635,7 +692,6 @@ export default function Home() {
     setAGuardarItensPlano(true)
     const { error: apagarError } = await supabase.from('producoes_semanais_itens').delete().eq('producao_semanal_id', producaoId)
     if (apagarError) { alert('Erro ao atualizar os itens do plano.'); setAGuardarItensPlano(false); return }
-    // calcular ordem baseada na posição do grupo
     const ordemPorNome: Record<string, number> = {}
     ordemGrupos.forEach((chave, index) => { ordemPorNome[chave] = index })
     const { error: inserirError } = await supabase.from('producoes_semanais_itens').insert(
@@ -783,7 +839,6 @@ export default function Home() {
     setTimeout(() => window.print(), 150)
   }
 
-  // ALTERAÇÃO: comprasPorSetor agora inclui nome_fornecedor e pratosTalho (agrupados por nome de prato sem tamanho)
   const comprasPorSetor = useMemo(() => {
     const compras: Record<string, Record<string, CompraAgrupada>> = {}
     detalhesProducao.forEach((item) => {
@@ -801,6 +856,8 @@ export default function Home() {
           const unidadePreco = infoIngrediente?.unidade_preco || null
           const custoAtual = calcularCustoIngrediente(quantidadeCompra, unidade, preco, unidadePreco)
           const nomeFornecedor = infoIngrediente?.nome_fornecedor || null
+          const quantidadeEmbalagem = infoIngrediente?.quantidade_embalagem ? parseNumero(infoIngrediente.quantidade_embalagem) : null
+          const unidadeEmbalagem = infoIngrediente?.unidade_embalagem || null
 
           if (!compras[categoria]) compras[categoria] = {}
           const chaveIngrediente = [Number(compIng.ingrediente_id) || 0, normalizarTexto(nomeIngrediente), normalizarTexto(unidade)].join('|')
@@ -814,21 +871,18 @@ export default function Home() {
               unidade_preco: unidadePreco,
               custo_total: 0,
               nome_fornecedor: nomeFornecedor,
+              quantidade_embalagem: quantidadeEmbalagem,
+              unidade_embalagem: unidadeEmbalagem,
               pratosTalho: {},
             }
           }
           compras[categoria][chaveIngrediente].quantidade += quantidadeCompra
           compras[categoria][chaveIngrediente].custo_total += custoAtual
 
-          // ALTERAÇÃO: para secção Talho, agrupar por nome do prato (sem tamanho)
           if (categoria.toLowerCase() === 'talho') {
             const chavePrato = normalizarTexto(pratoNome)
             if (!compras[categoria][chaveIngrediente].pratosTalho[chavePrato]) {
-              compras[categoria][chaveIngrediente].pratosTalho[chavePrato] = {
-                pratoNome,
-                quantidade: 0,
-                unidade,
-              }
+              compras[categoria][chaveIngrediente].pratosTalho[chavePrato] = { pratoNome, quantidade: 0, unidade }
             }
             compras[categoria][chaveIngrediente].pratosTalho[chavePrato].quantidade += quantidadeCompra
           }
@@ -951,6 +1005,38 @@ export default function Home() {
     })).sort((a, b) => a.pratoNome.localeCompare(b.pratoNome))
   }, [detalhesProducao, pratosComponentes, tarefasFinalizacaoNovo])
 
+  const ingredientesPorComponente = useMemo(() => {
+    const resultado: Record<string, { ingredienteId: number; nome: string; quantidade: number; unidade: string | null }[]> = {}
+    listaConfeccao.forEach((bloco) => {
+      const chave = bloco.chave
+      const totalFatorPorPrato: { pratoId: number; doses: number; fator: number }[] = []
+      detalhesProducao.forEach((item) => {
+        const pratoId = Number(item.pratos?.id)
+        const doses = Number(item.quantidade || 0)
+        const pc = pratosComponentes.find((p) => Number(p.prato_id) === pratoId && Number(p.componente_id) === bloco.componenteId)
+        if (pc) {
+          const fator = obterFatorUsoComponente(pc)
+          totalFatorPorPrato.push({ pratoId, doses, fator })
+        }
+      })
+      const ingredientesAgrupados: Record<string, { ingredienteId: number; nome: string; quantidade: number; unidade: string | null }> = {}
+      componentesIngredientes.filter((ci) => Number(ci.componente_id) === bloco.componenteId).forEach((ci) => {
+        const infoIng = obterInfoIngredientePorId(ci.ingrediente_id)
+        const nomeIng = ci.ingredientes?.nome || infoIng?.nome || 'Ingrediente'
+        const unidade = ci.unidade || infoIng?.unidade_base || null
+        const chaveIng = [Number(ci.ingrediente_id), normalizarTexto(nomeIng)].join('|')
+        let qtdTotal = 0
+        totalFatorPorPrato.forEach(({ doses, fator }) => {
+          qtdTotal += parseNumero(ci.quantidade) * fator * doses
+        })
+        if (!ingredientesAgrupados[chaveIng]) ingredientesAgrupados[chaveIng] = { ingredienteId: Number(ci.ingrediente_id), nome: nomeIng, quantidade: 0, unidade }
+        ingredientesAgrupados[chaveIng].quantidade += qtdTotal
+      })
+      resultado[chave] = Object.values(ingredientesAgrupados).filter((i) => i.quantidade > 0).sort((a, b) => a.nome.localeCompare(b.nome))
+    })
+    return resultado
+  }, [listaConfeccao, detalhesProducao, pratosComponentes, componentesIngredientes, ingredientesInfo])
+
   const listaEmbalamento = useMemo(() => {
     const agrupado: Record<string, GrupoEmbalamento> = {}
     detalhesProducao.forEach((item) => {
@@ -977,46 +1063,6 @@ export default function Home() {
       if (oldIndex === -1 || newIndex === -1) return prev
       return arrayMove(prev, oldIndex, newIndex)
     })
-  }
-
-  function SortableCartaoGrupo({ grupo, onRemover }: { grupo: GrupoPrato; onRemover: () => void }) {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: grupo.chaveGrupo })
-    const cores = obterCoresCategoria(grupo.categoria_prato)
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-      opacity: isDragging ? 0.5 : 1,
-      background: cores.bg,
-      borderRadius: '8px',
-      padding: '10px 12px',
-      position: 'relative' as const,
-      cursor: 'grab',
-    }
-    return (
-      <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-        <button
-          onClick={(e) => { e.stopPropagation(); onRemover() }}
-          style={{ position: 'absolute', top: '6px', right: '8px', background: 'transparent', border: 'none', fontSize: '14px', color: cores.textoSecundario, cursor: 'pointer', lineHeight: 1, zIndex: 1 }}
-        >×</button>
-        <p style={{ fontSize: '9px', color: cores.textoSecundario, margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{grupo.categoria_prato || 'Sem categoria'}</p>
-        <p style={{ fontSize: '13px', color: cores.textoPrincipal, fontWeight: '600', margin: '0 0 6px' }}>{grupo.nome}</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {grupo.tamanhos.map((item) => (
-            <div key={item.prato_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '11px', color: cores.textoSecundario }}>{item.tamanho} · {item.sku}</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="number" min="1" value={item.quantidade}
-                  onChange={(e) => atualizarQuantidadeItemPlanoEdicao(item.prato_id, e.target.value)}
-                  style={{ width: '55px', border: '1px solid #d1d5db', padding: '2px 5px', borderRadius: '4px', fontSize: '11px', color: '#111', background: '#fff' }}
-                />
-                <span style={{ fontSize: '11px', color: cores.textoSecundario }}>doses</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
   }
 
   function renderCartaoPrato(item: ItemPlano, onRemover: () => void) {
@@ -1100,66 +1146,211 @@ export default function Home() {
     )
   }
 
-  function renderEditorItensPlano(producaoId: number) {
+  function renderModalEdicaoItensPlano() {
+    if (planoEditandoId === null) return null
+    const producaoEmEdicao = producoes.find((p) => p.id === planoEditandoId)
     const textoPesquisa = pesquisaEdicao.trim()
     const mostrarResultados = textoPesquisa.length >= 2
+
     return (
-      <div style={{ marginTop: '12px', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '1rem', background: '#f9fafb' }}>
-        <p style={{ fontSize: '14px', fontWeight: '500', margin: '0 0 4px', color: '#111' }}>Editar pratos do plano</p>
-        <p style={{ fontSize: '11px', color: '#9ca3af', margin: '0 0 12px' }}>Arrasta os cartões para reordenar</p>
-        {gruposPlanoEdicao.length > 0 && (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={gruposPlanoEdicao.map((g) => g.chaveGrupo)} strategy={rectSortingStrategy}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px', marginBottom: '12px' }}>
-                {gruposPlanoEdicao.map((grupo) => (
-                  <SortableCartaoGrupo
-                    key={grupo.chaveGrupo}
-                    grupo={grupo}
-                    onRemover={() => removerGrupoPlanoEdicao(grupo.chaveGrupo)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-        )}
-        <div style={{ marginBottom: '12px' }}>
-          <input type="text" placeholder="Pesquisar prato por nome ou SKU..." value={pesquisaEdicao} onChange={(e) => setPesquisaEdicao(e.target.value)}
-            style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
-        </div>
-        {mostrarResultados && (
-          <div style={{ marginBottom: '12px' }}>
-            {loadingPesquisaEdicao ? (
-              <p style={{ fontSize: '13px', color: '#6b7280' }}>A procurar...</p>
-            ) : pratosPesquisaEdicao.length === 0 ? (
-              <p style={{ fontSize: '13px', color: '#6b7280' }}>Nenhum prato encontrado.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
-                {pratosPesquisaEdicao.map((p) => {
-                  const cores = obterCoresCategoria(p.categoria_prato)
-                  return (
-                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: cores.bg, borderRadius: '6px', padding: '8px 10px', gap: '8px' }}>
-                      <div>
-                        <p style={{ fontSize: '9px', color: cores.textoSecundario, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{p.categoria_prato || 'Sem categoria'}</p>
-                        <p style={{ fontSize: '13px', color: cores.textoPrincipal, fontWeight: '500', margin: '0' }}>{p.nome}</p>
-                        <p style={{ fontSize: '11px', color: cores.textoSecundario, margin: '0' }}>{p.tamanho} · {p.sku}</p>
-                      </div>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <input type="number" min="1" value={quantidadesEdicaoAdicionar[p.id] || ''} onChange={(e) => atualizarQuantidadeAdicionarEdicao(p.id, e.target.value)}
-                          style={{ width: '60px', border: '1px solid #d1d5db', padding: '4px 8px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff' }} />
-                        <button onClick={() => adicionarPratoAoPlanoEmEdicao(p)} style={{ backgroundColor: '#80c944', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Add</button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 1000,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'center',
+          overflowY: 'auto',
+          padding: '24px 16px 48px',
+        }}
+        onClick={(e) => { if (e.target === e.currentTarget) cancelarEdicaoItensPlano() }}
+      >
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: '14px',
+            width: '100%',
+            maxWidth: '1200px',
+            padding: '28px 32px',
+            boxShadow: '0 8px 48px rgba(0,0,0,0.22)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+          }}
+        >
+          {/* Cabeçalho */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <p style={{ fontSize: '18px', fontWeight: '600', margin: '0 0 2px', color: '#111' }}>
+                Editar pratos do plano
+              </p>
+              {producaoEmEdicao && (
+                <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 2px' }}>
+                  {producaoEmEdicao.nome_semana}
+                </p>
+              )}
+              <p style={{ fontSize: '11px', color: '#9ca3af', margin: 0 }}>
+                Arrasta os cartões para reordenar · clica × para remover
+              </p>
+            </div>
+            <button
+              onClick={cancelarEdicaoItensPlano}
+              style={{
+                background: '#f3f4f6',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                fontSize: '13px',
+                color: '#374151',
+                cursor: 'pointer',
+                fontWeight: '500',
+                flexShrink: 0,
+              }}
+            >
+              ✕ Fechar
+            </button>
           </div>
-        )}
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={() => guardarItensPlanoEditado(producaoId)} disabled={aGuardarItensPlano} style={{ backgroundColor: '#80c944', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
-            {aGuardarItensPlano ? 'A guardar...' : 'Guardar itens'}
-          </button>
-          <button onClick={cancelarEdicaoItensPlano} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+
+          {/* Grelha drag-and-drop */}
+          {gruposPlanoEdicao.length > 0 ? (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={gruposPlanoEdicao.map((g) => g.chaveGrupo)} strategy={rectSortingStrategy}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))',
+                    gap: '8px',
+                  }}
+                >
+                  {gruposPlanoEdicao.map((grupo) => (
+                    <SortableCartaoGrupo
+                      key={grupo.chaveGrupo}
+                      grupo={grupo}
+                      onRemover={() => removerGrupoPlanoEdicao(grupo.chaveGrupo)}
+                      onAtualizarQuantidade={atualizarQuantidadeItemPlanoEdicao}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          ) : (
+            <p style={{ fontSize: '13px', color: '#9ca3af', textAlign: 'center', padding: '24px 0' }}>
+              Nenhum prato no plano. Pesquisa abaixo para adicionar.
+            </p>
+          )}
+
+          {/* Separador */}
+          <div style={{ borderTop: '1px solid #e5e7eb' }} />
+
+          {/* Pesquisa para adicionar pratos */}
+          <div>
+            <p style={{ fontSize: '13px', fontWeight: '500', color: '#374151', margin: '0 0 8px' }}>
+              Adicionar pratos ao plano
+            </p>
+            <input
+              type="text"
+              placeholder="Pesquisar prato por nome ou SKU..."
+              value={pesquisaEdicao}
+              onChange={(e) => setPesquisaEdicao(e.target.value)}
+              style={{
+                width: '100%',
+                border: '1px solid #d1d5db',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '13px',
+                boxSizing: 'border-box',
+                color: '#111',
+                background: '#fff',
+              }}
+            />
+          </div>
+
+          {mostrarResultados && (
+            <div>
+              {loadingPesquisaEdicao ? (
+                <p style={{ fontSize: '13px', color: '#6b7280' }}>A procurar...</p>
+              ) : pratosPesquisaEdicao.length === 0 ? (
+                <p style={{ fontSize: '13px', color: '#6b7280' }}>Nenhum prato encontrado.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '220px', overflowY: 'auto' }}>
+                  {pratosPesquisaEdicao.map((p) => {
+                    const cores = obterCoresCategoria(p.categoria_prato)
+                    return (
+                      <div
+                        key={p.id}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          background: cores.bg,
+                          borderRadius: '6px',
+                          padding: '8px 12px',
+                          gap: '8px',
+                        }}
+                      >
+                        <div>
+                          <p style={{ fontSize: '9px', color: cores.textoSecundario, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{p.categoria_prato || 'Sem categoria'}</p>
+                          <p style={{ fontSize: '13px', color: cores.textoPrincipal, fontWeight: '500', margin: '0' }}>{p.nome}</p>
+                          <p style={{ fontSize: '11px', color: cores.textoSecundario, margin: '0' }}>{p.tamanho} · {p.sku}</p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          <input
+                            type="number"
+                            min="1"
+                            value={quantidadesEdicaoAdicionar[p.id] || ''}
+                            onChange={(e) => atualizarQuantidadeAdicionarEdicao(p.id, e.target.value)}
+                            style={{ width: '60px', border: '1px solid #d1d5db', padding: '4px 8px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff' }}
+                          />
+                          <button
+                            onClick={() => adicionarPratoAoPlanoEmEdicao(p)}
+                            style={{ backgroundColor: '#80c944', color: '#fff', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Botões de ação */}
+          <div style={{ display: 'flex', gap: '8px', paddingTop: '4px' }}>
+            <button
+              onClick={() => guardarItensPlanoEditado(planoEditandoId)}
+              disabled={aGuardarItensPlano}
+              style={{
+                backgroundColor: '#80c944',
+                color: '#fff',
+                border: 'none',
+                padding: '9px 20px',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontWeight: '500',
+                cursor: 'pointer',
+              }}
+            >
+              {aGuardarItensPlano ? 'A guardar...' : 'Guardar itens'}
+            </button>
+            <button
+              onClick={cancelarEdicaoItensPlano}
+              style={{
+                background: '#e5e7eb',
+                color: '#374151',
+                border: 'none',
+                padding: '9px 20px',
+                borderRadius: '6px',
+                fontSize: '13px',
+                cursor: 'pointer',
+              }}
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -1221,7 +1412,6 @@ export default function Home() {
                   </>
                 )}
               </div>
-              {planoEditandoId === p.id && renderEditorItensPlano(p.id)}
             </div>
           ))}
         </div>
@@ -1259,8 +1449,6 @@ export default function Home() {
     )
   }
 
-  // ALTERAÇÃO: renderCompras agora mostra fornecedor em todos os ingredientes
-  // e na secção Talho mostra os pratos com quantidade total agrupada por nome
   function renderCompras() {
     return (
       <div className="border p-6 rounded bg-gray-50">
@@ -1294,13 +1482,18 @@ export default function Home() {
                         <div className="flex justify-between items-start gap-4">
                           <div className="flex-1">
                             <p className="font-semibold">{info.nome}</p>
-                            {/* ALTERAÇÃO: mostrar fornecedor em todos os ingredientes */}
                             {info.nome_fornecedor && (
                               <p className="text-sm text-blue-700 font-medium">Fornecedor: {info.nome_fornecedor}</p>
                             )}
                             <p className="text-sm text-gray-600">Quantidade: {formatarQuantidade(info.quantidade, info.unidade)}</p>
+                            {info.quantidade_embalagem && info.quantidade_embalagem > 0 && (() => {
+                              const qtdEmb = converterQuantidadeParaUnidadePreco(info.quantidade, info.unidade, info.unidade_embalagem)
+                              const numEmb = qtdEmb > 0 ? Math.ceil(qtdEmb / info.quantidade_embalagem) : null
+                              return numEmb ? (
+                                <p className="text-sm font-semibold text-orange-700">Embalagens: {numEmb}</p>
+                              ) : null
+                            })()}
                             <p className="text-sm text-gray-600">Preço: {formatarPrecoComUnidade(info.preco, info.unidade_preco)}</p>
-                            {/* ALTERAÇÃO: só no Talho mostrar pratos com quantidade total agrupada por nome */}
                             {ehTalho && Object.keys(info.pratosTalho).length > 0 && (
                               <div className="mt-2 pt-2 border-t border-gray-100">
                                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Quantidade por prato</p>
@@ -1396,6 +1589,17 @@ export default function Home() {
                   <p className="text-2xl font-bold">{bloco.componenteNome}</p>
                   <p className="text-lg font-bold text-green-700 mt-2">Quantidade total: {formatarQuantidade(bloco.quantidadeTotal, bloco.unidade)}</p>
                   <p className="text-sm text-gray-600 mt-1"><strong>Prioridades:</strong> {bloco.prioridades.length > 0 ? bloco.prioridades.join(', ') : '-'}</p>
+                  {ingredientesPorComponente[bloco.chave]?.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+                      {ingredientesPorComponente[bloco.chave].map((ing) => (
+                        <span key={ing.ingredienteId} style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '3px 8px', fontSize: '11px', color: '#374151' }}>
+                          <span style={{ fontWeight: '600' }}>{ing.nome}</span>
+                          {' '}
+                          <span style={{ color: '#16a34a', fontWeight: '500' }}>{formatarQuantidade(ing.quantidade, ing.unidade)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="mb-5">
                   <h3 className="text-lg font-semibold mb-3">Pratos que usam este componente</h3>
@@ -1708,6 +1912,7 @@ export default function Home() {
         </div>
       </main>
 
+      {renderModalEdicaoItensPlano()}
       {renderAreaImpressao()}
 
       <style jsx global>{`
