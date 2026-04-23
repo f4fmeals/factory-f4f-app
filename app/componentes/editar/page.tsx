@@ -974,7 +974,7 @@ export default function EditarComponentePage() {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Editar componentes</h1>
           <div className="flex gap-3">
-            <Link href="/" className="px-4 py-2 rounded bg-gray-200 text-black font-medium">
+            <Link href="/gestao" className="px-4 py-2 rounded bg-gray-200 text-black font-medium">
               Voltar
             </Link>
           </div>

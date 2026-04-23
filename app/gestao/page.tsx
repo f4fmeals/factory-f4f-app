@@ -814,15 +814,39 @@ export default function Home() {
 
   const listaPreparacaoPDF = useMemo(() => {
     return listaPreparacao.map((grupo: any) => {
-      const tarefasAgrupadas: Record<string, { tarefa: string; quantidade: number; unidade: string | null }> = {}
+      const tarefasAgrupadas: Record<string, { tarefa: string; componente: string; observacoes: string | null; quantidade: number; unidade: string | null; ordem: number }> = {}
       grupo.pratos.forEach((prato: any) => {
         prato.tarefas.forEach((tarefa: any) => {
-          const chave = normalizarTexto(tarefa.tarefa)
-          if (!tarefasAgrupadas[chave]) tarefasAgrupadas[chave] = { tarefa: tarefa.tarefa, quantidade: 0, unidade: tarefa.unidade }
+          // Chave inclui tarefa + componente + observações + unidade para NÃO colapsar tarefas distintas
+          const chave = [
+            normalizarTexto(tarefa.tarefa),
+            normalizarTexto(tarefa.componente),
+            normalizarTexto(tarefa.observacoes || ''),
+            normalizarTexto(tarefa.unidade),
+          ].join('|')
+          if (!tarefasAgrupadas[chave]) {
+            tarefasAgrupadas[chave] = {
+              tarefa: tarefa.tarefa,
+              componente: tarefa.componente,
+              observacoes: tarefa.observacoes,
+              quantidade: 0,
+              unidade: tarefa.unidade,
+              ordem: tarefa.ordem ?? 0,
+            }
+          }
           tarefasAgrupadas[chave].quantidade += tarefa.quantidadeTarefa
         })
       })
-      return { chave: grupo.chave, ingredienteNome: grupo.ingredienteNome, unidade: grupo.unidade, tarefas: Object.values(tarefasAgrupadas).sort((a, b) => a.tarefa.localeCompare(b.tarefa)) }
+      return {
+        chave: grupo.chave,
+        ingredienteNome: grupo.ingredienteNome,
+        unidade: grupo.unidade,
+        tarefas: Object.values(tarefasAgrupadas).sort((a, b) =>
+          a.ordem !== b.ordem ? a.ordem - b.ordem
+            : a.tarefa !== b.tarefa ? a.tarefa.localeCompare(b.tarefa)
+            : a.componente.localeCompare(b.componente)
+        ),
+      }
     })
   }, [listaPreparacao])
 
@@ -1526,10 +1550,23 @@ export default function Home() {
                 <div key={grupo.chave} className="print-block">
                   <h2 className="print-ingrediente-titulo">{grupo.ingredienteNome}</h2>
                   <table className="print-table">
-                    <thead><tr><th style={{ width: '70%' }}>Tarefa</th><th style={{ width: '30%' }}>Quantidade</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '45%' }}>Tarefa</th>
+                        <th style={{ width: '30%' }}>Componente</th>
+                        <th style={{ width: '25%' }}>Quantidade</th>
+                      </tr>
+                    </thead>
                     <tbody>
                       {grupo.tarefas.map((tarefa, idx) => (
-                        <tr key={idx}><td>{tarefa.tarefa}</td><td>{formatarQuantidade(tarefa.quantidade, tarefa.unidade)}</td></tr>
+                        <tr key={idx}>
+                          <td>
+                            {tarefa.tarefa}
+                            {tarefa.observacoes && <div style={{ fontSize: '9px', color: '#555', marginTop: '2px' }}>Obs: {tarefa.observacoes}</div>}
+                          </td>
+                          <td>{tarefa.componente}</td>
+                          <td>{formatarQuantidade(tarefa.quantidade, tarefa.unidade)}</td>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
@@ -1587,27 +1624,73 @@ export default function Home() {
             </div>
           )}
 
-          {/* ── EMBALAMENTO: ordem dos detalhes ── */}
+          {/* ── EMBALAMENTO: tamanhos com mesmos componentes (nome + posição) agrupados numa só tabela ── */}
           {secaoExportar === 'embalamento' && (
             <div className="print-section">
-              {listaEmbalamento.length === 0 ? <p>Sem dados de embalamento.</p> : listaEmbalamento.map((grupo) => (
-                <div key={grupo.chave} className="print-block">
-                  <h2>{grupo.prato}</h2>
-                  <p className="print-subtitle">Prioridade: {grupo.prioridade ?? '-'}</p>
-                  {grupo.tamanhos.map((linha) => (
-                    <div key={linha.chave} className="print-subblock">
-                      <h3>Tamanho: {linha.tamanho}</h3>
-                      <p>SKU: {linha.sku} · Quantidade: {linha.quantidade}</p>
-                      <table className="print-table">
-                        <thead><tr><th>Componente</th><th>Peso</th><th>Posição</th></tr></thead>
-                        <tbody>{linha.componentes.map((componente) => (
-                          <tr key={componente.id}><td>{componente.nome}</td><td>{formatarQuantidade(componente.peso, componente.unidade)}</td><td>{componente.posicao}</td></tr>
-                        ))}</tbody>
-                      </table>
-                    </div>
-                  ))}
-                </div>
-              ))}
+              {listaEmbalamento.length === 0 ? <p>Sem dados de embalamento.</p> : listaEmbalamento.map((grupo) => {
+                // Agrupar tamanhos cuja "assinatura" de componentes (nome + posição + unidade, por ordem) é igual
+                const subgrupos: { assinatura: string; tamanhos: typeof grupo.tamanhos; componentesBase: typeof grupo.tamanhos[0]['componentes'] }[] = []
+                grupo.tamanhos.forEach((linha) => {
+                  const componentesOrdenados = [...linha.componentes].sort((a, b) => a.ordem - b.ordem)
+                  const assinatura = componentesOrdenados.map((c) =>
+                    [normalizarTexto(c.nome), normalizarTexto(c.posicao), normalizarTexto(c.unidade)].join('~')
+                  ).join('||')
+                  const existente = subgrupos.find((s) => s.assinatura === assinatura)
+                  if (existente) {
+                    existente.tamanhos.push(linha)
+                  } else {
+                    subgrupos.push({ assinatura, tamanhos: [linha], componentesBase: componentesOrdenados })
+                  }
+                })
+
+                return (
+                  <div key={grupo.chave} className="print-block">
+                    <h2>{grupo.prato}</h2>
+                    <p className="print-subtitle">Prioridade: {grupo.prioridade ?? '-'}</p>
+                    {subgrupos.map((sub, subIdx) => {
+                      const tamanhosOrdenados = [...sub.tamanhos].sort(ordenarTamanhoPadrao)
+                      return (
+                        <div key={subIdx} className="print-subblock">
+                          <h3>
+                            {tamanhosOrdenados.map((t) => `${t.tamanho} (${t.sku}) · ${t.quantidade} un`).join('  |  ')}
+                          </h3>
+                          <table className="print-table">
+                            <thead>
+                              <tr>
+                                <th>Componente</th>
+                                <th>Posição</th>
+                                {tamanhosOrdenados.map((t) => (
+                                  <th key={t.chave}>Peso {t.tamanho}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sub.componentesBase.map((compBase) => (
+                                <tr key={compBase.id}>
+                                  <td>{compBase.nome}</td>
+                                  <td>{compBase.posicao}</td>
+                                  {tamanhosOrdenados.map((t) => {
+                                    // Encontrar o componente correspondente neste tamanho (mesmo nome + posição)
+                                    const compNesteTamanho = t.componentes.find((c) =>
+                                      normalizarTexto(c.nome) === normalizarTexto(compBase.nome) &&
+                                      normalizarTexto(c.posicao) === normalizarTexto(compBase.posicao)
+                                    )
+                                    return (
+                                      <td key={t.chave}>
+                                        {compNesteTamanho ? formatarQuantidade(compNesteTamanho.peso, compNesteTamanho.unidade) : '-'}
+                                      </td>
+                                    )
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

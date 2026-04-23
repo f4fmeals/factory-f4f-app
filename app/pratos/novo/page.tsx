@@ -674,7 +674,7 @@ export default function NovoPratoPage() {
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Novo prato</h1>
-          <Link href="/" className="px-4 py-2 rounded bg-gray-200 text-black font-medium">
+          <Link href="/gestao" className="px-4 py-2 rounded bg-gray-200 text-black font-medium">
             Voltar
           </Link>
         </div>
@@ -925,7 +925,7 @@ export default function NovoPratoPage() {
               Limpar
             </button>
             <Link
-              href="/"
+              href="/gestao"
               className="px-6 py-3 rounded bg-gray-200 text-black font-medium"
             >
               Cancelar

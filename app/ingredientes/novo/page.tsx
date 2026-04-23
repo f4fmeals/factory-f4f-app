@@ -254,7 +254,7 @@ export default function NovoIngredientePage() {
           <h1 className="text-3xl font-bold">Novo ingrediente</h1>
 
           <Link
-            href="/"
+            href="/gestao"
             className="px-4 py-2 rounded bg-gray-200 text-black font-medium"
           >
             Voltar
@@ -475,7 +475,7 @@ export default function NovoIngredientePage() {
             </button>
 
             <Link
-              href="/"
+              href="/gestao"
               className="px-6 py-3 rounded bg-gray-200 text-black font-medium"
             >
               Cancelar

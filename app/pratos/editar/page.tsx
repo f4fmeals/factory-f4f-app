@@ -744,7 +744,7 @@ export default function EditarPratosPage() {
             >
               Novo prato
             </Link>
-            <Link href="/" className="px-4 py-2 rounded bg-gray-200 text-black font-medium">
+            <Link href="/gestao" className="px-4 py-2 rounded bg-gray-200 text-black font-medium">
               Voltar
             </Link>
           </div>
