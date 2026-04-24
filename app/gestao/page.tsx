@@ -886,6 +886,27 @@ export default function Home() {
     })).filter((grupo: any) => grupo.tarefas.length > 0).sort((a: any, b: any) => a.prioridadeMinima !== b.prioridadeMinima ? a.prioridadeMinima - b.prioridadeMinima : a.componenteNome.localeCompare(b.componenteNome))
   }, [detalhesProducao, pratosComponentes, tarefasConfeccaoNovo])
 
+  // Lista de confeção ORDENADA para o PDF, seguindo a ordem dos pratos nos detalhes (igual ao embalamento).
+  // Cada componente é posicionado com base no primeiro prato (na ordem dos detalhes) que o usa.
+  const listaConfeccaoPDF = useMemo(() => {
+    const indicePrimeiroPratoPorComponente: Record<string, number> = {}
+    listaConfeccao.forEach((bloco: any) => {
+      let indiceMinimo = Number.MAX_SAFE_INTEGER
+      bloco.pratos.forEach((prato: any) => {
+        const chavePrato = normalizarTexto(prato.pratoNome)
+        const idx = ordemPratosDetalhes.indexOf(chavePrato)
+        if (idx !== -1 && idx < indiceMinimo) indiceMinimo = idx
+      })
+      indicePrimeiroPratoPorComponente[bloco.chave] = indiceMinimo
+    })
+    return [...listaConfeccao].sort((a: any, b: any) => {
+      const iA = indicePrimeiroPratoPorComponente[a.chave] ?? Number.MAX_SAFE_INTEGER
+      const iB = indicePrimeiroPratoPorComponente[b.chave] ?? Number.MAX_SAFE_INTEGER
+      if (iA !== iB) return iA - iB
+      return a.componenteNome.localeCompare(b.componenteNome)
+    })
+  }, [listaConfeccao, ordemPratosDetalhes])
+
   const listaFinalizacao = useMemo(() => {
     const agrupado: Record<string, any> = {}
     detalhesProducao.forEach((item) => {
@@ -1575,23 +1596,36 @@ export default function Home() {
             </div>
           )}
 
-          {/* ── CONFEÇÃO: ingredientes como pills + tabela só com tarefas ── */}
+          {/* ── CONFEÇÃO: ordenada pela ordem dos pratos nos detalhes (igual ao embalamento).
+                Ingredientes em pills + linha com pratos destino (nome + quantidade) + tabela só com tarefas ── */}
           {secaoExportar === 'confeccao' && (
             <div className="print-section">
-              {listaConfeccao.length === 0 ? <p>Sem dados de confeção.</p> : listaConfeccao.map((bloco: any) => (
+              {listaConfeccaoPDF.length === 0 ? <p>Sem dados de confeção.</p> : listaConfeccaoPDF.map((bloco: any) => (
                 <div key={bloco.chave} className="print-block">
                   <h2>{bloco.componenteNome}</h2>
                   <p className="print-subtitle"><strong>Quantidade total:</strong> {formatarQuantidade(bloco.quantidadeTotal, bloco.unidade)}</p>
                   <p className="print-subtitle"><strong>Prioridade:</strong> {bloco.prioridades.length > 0 ? bloco.prioridades.join(', ') : '-'}</p>
                   {/* Ingredientes em pills */}
                   {ingredientesPorComponente[bloco.chave]?.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', margin: '6px 0 8px 0' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', margin: '6px 0 4px 0' }}>
                       {ingredientesPorComponente[bloco.chave].map((ing: any) => (
                         <span key={ing.ingredienteId} style={{ border: '1px solid #999', borderRadius: '4px', padding: '2px 6px', fontSize: '9px', background: '#f5f5f5' }}>
                           <strong>{ing.nome}</strong> {formatarQuantidade(ing.quantidade, ing.unidade)}
                         </span>
                       ))}
                     </div>
+                  )}
+                  {/* Pratos destino em texto pequeno (nome + quantidade) */}
+                  {bloco.pratos?.length > 0 && (
+                    <p style={{ fontSize: '9px', color: '#555', margin: '2px 0 6px 0', lineHeight: 1.4 }}>
+                      <strong>Para:</strong>{' '}
+                      {bloco.pratos.map((prato: any, idx: number) => (
+                        <span key={prato.chave}>
+                          {idx > 0 && ' · '}
+                          {prato.pratoNome} — {formatarQuantidade(prato.quantidadeComponente, prato.unidade)}
+                        </span>
+                      ))}
+                    </p>
                   )}
                   {/* Tabela só com tarefas, sem coluna ordem */}
                   <table className="print-table">
