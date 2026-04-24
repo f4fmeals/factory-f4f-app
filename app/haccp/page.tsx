@@ -51,6 +51,7 @@ type TarefaLimpeza = {
   espaco_id: number
   tarefa: string
   frequencia: string | null
+  notas: string | null
   ordem: number
   ativo: boolean
 }
@@ -77,6 +78,8 @@ export default function HaccpHome() {
   const router = useRouter()
   const [aVerificar, setAVerificar] = useState(true)
   const [nomeUtilizador, setNomeUtilizador] = useState('')
+  const [roleUtilizador, setRoleUtilizador] = useState<string>('')
+  const ehGestor = roleUtilizador === 'gestor'
 
   // Instalações
   const [instalacoes, setInstalacoes] = useState<Instalacao[]>([])
@@ -130,10 +133,13 @@ export default function HaccpHome() {
   const [formEspDescricao, setFormEspDescricao] = useState('')
   const [aGuardarEspaco, setAGuardarEspaco] = useState(false)
 
+  // Nova tarefa: texto + notas
   const [novaTarefaPorEspaco, setNovaTarefaPorEspaco] = useState<Record<number, string>>({})
+  const [novaTarefaNotasPorEspaco, setNovaTarefaNotasPorEspaco] = useState<Record<number, string>>({})
   const [aGuardarTarefa, setAGuardarTarefa] = useState(false)
   const [tarefaEmEdicaoId, setTarefaEmEdicaoId] = useState<number | null>(null)
   const [formTarefaTexto, setFormTarefaTexto] = useState('')
+  const [formTarefaNotas, setFormTarefaNotas] = useState('')
 
   const [registosLimpezaHoje, setRegistosLimpezaHoje] = useState<RegistoLimpeza[]>([])
   const [registosLimpezaTarefas, setRegistosLimpezaTarefas] = useState<RegistoLimpezaTarefa[]>([])
@@ -164,6 +170,7 @@ export default function HaccpHome() {
         return
       }
       setNomeUtilizador(perfil.nome)
+      setRoleUtilizador(perfil.role)
       setAVerificar(false)
       await carregarInstalacoes()
     }
@@ -241,16 +248,19 @@ export default function HaccpHome() {
   }
 
   function abrirFormNovaInstalacao() {
+    if (!ehGestor) return
     setInstalacaoEmEdicao(null); setFormInstNome(''); setFormInstMorada(''); setFormInstalacaoAberto(true)
   }
 
   function abrirFormEditarInstalacao(inst: Instalacao) {
+    if (!ehGestor) return
     setInstalacaoEmEdicao(inst); setFormInstNome(inst.nome); setFormInstMorada(inst.morada || ''); setFormInstalacaoAberto(true)
   }
 
   function fecharFormInstalacao() { setFormInstalacaoAberto(false); setInstalacaoEmEdicao(null) }
 
   async function guardarInstalacao() {
+    if (!ehGestor) return
     const nome = formInstNome.trim()
     if (!nome) { alert('Introduz o nome da loja.'); return }
     setAGuardarInst(true)
@@ -269,6 +279,7 @@ export default function HaccpHome() {
   }
 
   async function apagarInstalacao(inst: Instalacao) {
+    if (!ehGestor) return
     if (!window.confirm(`Apagar a loja "${inst.nome}"? Todos os equipamentos, espaços e registos associados serão também apagados.`)) return
     const { error } = await supabase.from('haccp_instalacoes').delete().eq('id', inst.id)
     if (error) { alert('Erro ao apagar a loja.'); return }
@@ -291,11 +302,13 @@ export default function HaccpHome() {
   }
 
   function abrirFormNovoEquipamento() {
+    if (!ehGestor) return
     setFormEquipNome(''); setFormEquipDescricao(''); setFormEquipMin(0); setFormEquipMax(5)
     setEquipamentoEmEdicao(null); setNovoEquipamentoAberto(true)
   }
 
   function abrirFormEditarEquipamento(equip: Equipamento) {
+    if (!ehGestor) return
     setFormEquipNome(equip.nome); setFormEquipDescricao(equip.descricao || '')
     setFormEquipMin(Number(equip.temp_min_aceitavel)); setFormEquipMax(Number(equip.temp_max_aceitavel))
     setEquipamentoEmEdicao(equip); setNovoEquipamentoAberto(false)
@@ -304,6 +317,7 @@ export default function HaccpHome() {
   function fecharFormEquipamento() { setNovoEquipamentoAberto(false); setEquipamentoEmEdicao(null) }
 
   async function guardarEquipamento() {
+    if (!ehGestor) return
     if (!instalacaoSel) return
     const nome = formEquipNome.trim()
     if (!nome) { alert('Introduz o nome do equipamento.'); return }
@@ -327,6 +341,7 @@ export default function HaccpHome() {
   }
 
   async function apagarEquipamento(equip: Equipamento) {
+    if (!ehGestor) return
     if (!instalacaoSel) return
     if (!window.confirm(`Apagar o equipamento "${equip.nome}"? Os registos anteriores também serão removidos.`)) return
     const { error } = await supabase.from('haccp_equipamentos').delete().eq('id', equip.id)
@@ -442,16 +457,19 @@ export default function HaccpHome() {
   }
 
   function abrirFormNovoEspaco() {
+    if (!ehGestor) return
     setEspacoEmEdicao(null); setFormEspNome(''); setFormEspDescricao(''); setNovoEspacoAberto(true)
   }
 
   function abrirFormEditarEspaco(esp: Espaco) {
+    if (!ehGestor) return
     setEspacoEmEdicao(esp); setFormEspNome(esp.nome); setFormEspDescricao(esp.descricao || ''); setNovoEspacoAberto(false)
   }
 
   function fecharFormEspaco() { setNovoEspacoAberto(false); setEspacoEmEdicao(null) }
 
   async function guardarEspaco() {
+    if (!ehGestor) return
     if (!instalacaoSel) return
     const nome = formEspNome.trim()
     if (!nome) { alert('Introduz o nome do espaço.'); return }
@@ -473,6 +491,7 @@ export default function HaccpHome() {
   }
 
   async function apagarEspaco(esp: Espaco) {
+    if (!ehGestor) return
     if (!instalacaoSel) return
     if (!window.confirm(`Apagar o espaço "${esp.nome}"? As tarefas e registos associados também serão apagados.`)) return
     const { error } = await supabase.from('haccp_espacos').delete().eq('id', esp.id)
@@ -482,31 +501,43 @@ export default function HaccpHome() {
   }
 
   async function adicionarTarefa(espacoId: number) {
+    if (!ehGestor) return
     const texto = (novaTarefaPorEspaco[espacoId] || '').trim()
     if (!texto) return
+    const notas = (novaTarefaNotasPorEspaco[espacoId] || '').trim()
     setAGuardarTarefa(true)
     const { error } = await supabase.from('haccp_tarefas_limpeza').insert([{
       espaco_id: espacoId, tarefa: texto,
+      notas: notas || null,
     }])
     if (error) { alert('Erro ao adicionar tarefa.'); setAGuardarTarefa(false); return }
     setNovaTarefaPorEspaco((prev) => ({ ...prev, [espacoId]: '' }))
+    setNovaTarefaNotasPorEspaco((prev) => ({ ...prev, [espacoId]: '' }))
     if (instalacaoSel) await carregarEspacos(instalacaoSel.id)
     setAGuardarTarefa(false)
   }
 
-  function iniciarEdicaoTarefa(t: TarefaLimpeza) { setTarefaEmEdicaoId(t.id); setFormTarefaTexto(t.tarefa) }
-  function cancelarEdicaoTarefa() { setTarefaEmEdicaoId(null); setFormTarefaTexto('') }
+  function iniciarEdicaoTarefa(t: TarefaLimpeza) {
+    if (!ehGestor) return
+    setTarefaEmEdicaoId(t.id); setFormTarefaTexto(t.tarefa); setFormTarefaNotas(t.notas || '')
+  }
+  function cancelarEdicaoTarefa() { setTarefaEmEdicaoId(null); setFormTarefaTexto(''); setFormTarefaNotas('') }
 
   async function guardarEdicaoTarefa(tarefaId: number) {
+    if (!ehGestor) return
     const texto = formTarefaTexto.trim()
     if (!texto) { alert('Introduz o texto da tarefa.'); return }
-    const { error } = await supabase.from('haccp_tarefas_limpeza').update({ tarefa: texto }).eq('id', tarefaId)
+    const { error } = await supabase.from('haccp_tarefas_limpeza').update({
+      tarefa: texto,
+      notas: formTarefaNotas.trim() || null,
+    }).eq('id', tarefaId)
     if (error) { alert('Erro ao atualizar tarefa.'); return }
     cancelarEdicaoTarefa()
     if (instalacaoSel) await carregarEspacos(instalacaoSel.id)
   }
 
   async function apagarTarefa(tarefa: TarefaLimpeza) {
+    if (!ehGestor) return
     if (!window.confirm(`Apagar a tarefa "${tarefa.tarefa}"?`)) return
     const { error } = await supabase.from('haccp_tarefas_limpeza').delete().eq('id', tarefa.id)
     if (error) { alert('Erro ao apagar tarefa.'); return }
@@ -668,10 +699,12 @@ export default function HaccpHome() {
               <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#111', margin: '0 0 6px' }}>HACCP</h1>
               <p style={{ fontSize: '14px', color: '#6b7280', margin: 0 }}>Escolhe a loja com a qual queres trabalhar</p>
             </div>
-            <button onClick={() => setGestaoInstalacoesAberta(true)}
-              style={{ background: '#fff', border: '1px solid #d1d5db', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', color: '#374151', cursor: 'pointer', fontWeight: '500' }}>
-              ⚙️ Gerir lojas
-            </button>
+            {ehGestor && (
+              <button onClick={() => setGestaoInstalacoesAberta(true)}
+                style={{ background: '#fff', border: '1px solid #d1d5db', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', color: '#374151', cursor: 'pointer', fontWeight: '500' }}>
+                ⚙️ Gerir lojas
+              </button>
+            )}
           </div>
 
           {aCarregarInstalacoes ? (
@@ -680,11 +713,17 @@ export default function HaccpHome() {
             <div style={{ background: '#fff', border: '1px dashed #d1d5db', borderRadius: '12px', padding: '40px 24px', textAlign: 'center' }}>
               <p style={{ fontSize: '48px', margin: '0 0 12px' }}>🏪</p>
               <p style={{ fontSize: '16px', fontWeight: '500', color: '#111', margin: '0 0 4px' }}>Ainda não há lojas criadas</p>
-              <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 16px' }}>Clica em "Gerir lojas" no canto superior direito para criar a primeira.</p>
-              <button onClick={() => setGestaoInstalacoesAberta(true)}
-                style={{ background: '#80c944', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
-                ⚙️ Gerir lojas
-              </button>
+              {ehGestor ? (
+                <>
+                  <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 16px' }}>Clica em "Gerir lojas" no canto superior direito para criar a primeira.</p>
+                  <button onClick={() => setGestaoInstalacoesAberta(true)}
+                    style={{ background: '#80c944', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
+                    ⚙️ Gerir lojas
+                  </button>
+                </>
+              ) : (
+                <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>Pede a um gestor para criar uma loja.</p>
+              )}
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '14px' }}>
@@ -702,7 +741,7 @@ export default function HaccpHome() {
           )}
         </div>
 
-        {renderModalGestaoInstalacoes()}
+        {ehGestor && renderModalGestaoInstalacoes()}
       </div>
     )
   }
@@ -746,7 +785,7 @@ export default function HaccpHome() {
 
       {renderModalRegistoTemperatura()}
       {renderModalHistoricoTemperatura()}
-      {renderModalGestaoInstalacoes()}
+      {ehGestor && renderModalGestaoInstalacoes()}
       {renderModalLimpeza()}
       {renderModalHistoricoLimpeza()}
     </div>
@@ -765,7 +804,9 @@ export default function HaccpHome() {
           {aCarregarRegistos || aCarregarEquipamentos ? (
             <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
           ) : equipamentos.length === 0 ? (
-            <p style={{ color: '#6b7280', fontSize: '13px' }}>Ainda não há equipamentos nesta loja. Cria um em baixo.</p>
+            <p style={{ color: '#6b7280', fontSize: '13px' }}>
+              {ehGestor ? 'Ainda não há equipamentos nesta loja. Cria um em baixo.' : 'Ainda não há equipamentos nesta loja. Pede a um gestor para os criar.'}
+            </p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
               {equipamentos.map((equip) => {
@@ -798,75 +839,77 @@ export default function HaccpHome() {
           )}
         </div>
 
-        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-            <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>⚙️ Equipamentos</p>
-            {!novoEquipamentoAberto && !equipamentoEmEdicao && (
-              <button onClick={abrirFormNovoEquipamento} style={{ background: '#80c944', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>+ Novo equipamento</button>
-            )}
-          </div>
+        {ehGestor && (
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>⚙️ Equipamentos</p>
+              {!novoEquipamentoAberto && !equipamentoEmEdicao && (
+                <button onClick={abrirFormNovoEquipamento} style={{ background: '#80c944', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>+ Novo equipamento</button>
+              )}
+            </div>
 
-          {(novoEquipamentoAberto || equipamentoEmEdicao) && (
-            <div style={{ border: '2px solid #80c944', borderRadius: '10px', padding: '16px', marginBottom: '16px', background: '#f9fafb' }}>
-              <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 12px' }}>{equipamentoEmEdicao ? 'Editar equipamento' : 'Novo equipamento'}</p>
-              <div style={{ display: 'grid', gap: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome *</label>
-                  <input type="text" value={formEquipNome} onChange={(e) => setFormEquipNome(e.target.value)}
-                    placeholder="ex: Frigorífico positivo cozinha"
-                    style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Descrição (opcional)</label>
-                  <input type="text" value={formEquipDescricao} onChange={(e) => setFormEquipDescricao(e.target.value)}
-                    placeholder="ex: Carnes e peixes"
-                    style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            {(novoEquipamentoAberto || equipamentoEmEdicao) && (
+              <div style={{ border: '2px solid #80c944', borderRadius: '10px', padding: '16px', marginBottom: '16px', background: '#f9fafb' }}>
+                <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 12px' }}>{equipamentoEmEdicao ? 'Editar equipamento' : 'Novo equipamento'}</p>
+                <div style={{ display: 'grid', gap: '10px' }}>
                   <div>
-                    <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Temp. mínima aceitável (°C)</label>
-                    <input type="number" value={formEquipMin} onChange={(e) => setFormEquipMin(Number(e.target.value))}
+                    <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome *</label>
+                    <input type="text" value={formEquipNome} onChange={(e) => setFormEquipNome(e.target.value)}
+                      placeholder="ex: Frigorífico positivo cozinha"
                       style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
                   </div>
                   <div>
-                    <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Temp. máxima aceitável (°C)</label>
-                    <input type="number" value={formEquipMax} onChange={(e) => setFormEquipMax(Number(e.target.value))}
+                    <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Descrição (opcional)</label>
+                    <input type="text" value={formEquipDescricao} onChange={(e) => setFormEquipDescricao(e.target.value)}
+                      placeholder="ex: Carnes e peixes"
                       style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
                   </div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                  <button onClick={guardarEquipamento} disabled={aGuardarEquip}
-                    style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
-                    {aGuardarEquip ? 'A guardar...' : 'Guardar'}
-                  </button>
-                  <button onClick={fecharFormEquipamento} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Temp. mínima aceitável (°C)</label>
+                      <input type="number" value={formEquipMin} onChange={(e) => setFormEquipMin(Number(e.target.value))}
+                        style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Temp. máxima aceitável (°C)</label>
+                      <input type="number" value={formEquipMax} onChange={(e) => setFormEquipMax(Number(e.target.value))}
+                        style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                    <button onClick={guardarEquipamento} disabled={aGuardarEquip}
+                      style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+                      {aGuardarEquip ? 'A guardar...' : 'Guardar'}
+                    </button>
+                    <button onClick={fecharFormEquipamento} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {equipamentos.length === 0 ? (
-            <p style={{ color: '#6b7280', fontSize: '13px' }}>Ainda não há equipamentos nesta loja.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {equipamentos.map((equip) => (
-                <div key={equip.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px 14px' }}>
-                  <div>
-                    <p style={{ fontSize: '14px', fontWeight: '500', color: '#111', margin: 0 }}>{equip.nome}</p>
-                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0' }}>
-                      {equip.temp_min_aceitavel}°C a {equip.temp_max_aceitavel}°C
-                      {equip.descricao && ` · ${equip.descricao}`}
-                    </p>
+            {equipamentos.length === 0 ? (
+              <p style={{ color: '#6b7280', fontSize: '13px' }}>Ainda não há equipamentos nesta loja.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {equipamentos.map((equip) => (
+                  <div key={equip.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px 14px' }}>
+                    <div>
+                      <p style={{ fontSize: '14px', fontWeight: '500', color: '#111', margin: 0 }}>{equip.nome}</p>
+                      <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0' }}>
+                        {equip.temp_min_aceitavel}°C a {equip.temp_max_aceitavel}°C
+                        {equip.descricao && ` · ${equip.descricao}`}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => abrirFormEditarEquipamento(equip)} style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
+                      <button onClick={() => apagarEquipamento(equip)} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button onClick={() => abrirFormEditarEquipamento(equip)} style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
-                    <button onClick={() => apagarEquipamento(equip)} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </>
     )
   }
@@ -883,7 +926,9 @@ export default function HaccpHome() {
           {aCarregarRegistosLimpeza || aCarregarEspacos ? (
             <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
           ) : espacos.length === 0 ? (
-            <p style={{ color: '#6b7280', fontSize: '13px' }}>Ainda não há espaços nesta loja. Cria um em baixo.</p>
+            <p style={{ color: '#6b7280', fontSize: '13px' }}>
+              {ehGestor ? 'Ainda não há espaços nesta loja. Cria um em baixo.' : 'Ainda não há espaços nesta loja. Pede a um gestor para os criar.'}
+            </p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
               {espacos.map((esp) => {
@@ -910,7 +955,9 @@ export default function HaccpHome() {
                       )
                     })() : (
                       tarefas.length === 0 ? (
-                        <p style={{ fontSize: '11px', color: '#9ca3af', fontStyle: 'italic', margin: 0 }}>Adiciona tarefas em baixo antes de registar</p>
+                        <p style={{ fontSize: '11px', color: '#9ca3af', fontStyle: 'italic', margin: 0 }}>
+                          {ehGestor ? 'Adiciona tarefas em baixo antes de registar' : 'Sem tarefas definidas. Pede a um gestor.'}
+                        </p>
                       ) : (
                         <button onClick={() => abrirModalLimpeza(esp)}
                           style={{ background: '#80c944', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontWeight: '500', width: '100%' }}>
@@ -925,109 +972,133 @@ export default function HaccpHome() {
           )}
         </div>
 
-        {/* Espaços e tarefas */}
-        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-            <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>🏠 Espaços e tarefas</p>
-            {!novoEspacoAberto && !espacoEmEdicao && (
-              <button onClick={abrirFormNovoEspaco} style={{ background: '#80c944', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>+ Novo espaço</button>
-            )}
-          </div>
+        {/* Espaços e tarefas - apenas visível a gestores */}
+        {ehGestor && (
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>🏠 Espaços e tarefas</p>
+              {!novoEspacoAberto && !espacoEmEdicao && (
+                <button onClick={abrirFormNovoEspaco} style={{ background: '#80c944', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>+ Novo espaço</button>
+              )}
+            </div>
 
-          {(novoEspacoAberto || espacoEmEdicao) && (
-            <div style={{ border: '2px solid #80c944', borderRadius: '10px', padding: '16px', marginBottom: '16px', background: '#f9fafb' }}>
-              <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 12px' }}>{espacoEmEdicao ? 'Editar espaço' : 'Novo espaço'}</p>
-              <div style={{ display: 'grid', gap: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome *</label>
-                  <input type="text" value={formEspNome} onChange={(e) => setFormEspNome(e.target.value)}
-                    placeholder="ex: Cozinha principal"
-                    style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Descrição (opcional)</label>
-                  <input type="text" value={formEspDescricao} onChange={(e) => setFormEspDescricao(e.target.value)}
-                    placeholder="ex: Zona quente e fria"
-                    style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
-                </div>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                  <button onClick={guardarEspaco} disabled={aGuardarEspaco}
-                    style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
-                    {aGuardarEspaco ? 'A guardar...' : 'Guardar'}
-                  </button>
-                  <button onClick={fecharFormEspaco} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+            {(novoEspacoAberto || espacoEmEdicao) && (
+              <div style={{ border: '2px solid #80c944', borderRadius: '10px', padding: '16px', marginBottom: '16px', background: '#f9fafb' }}>
+                <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 12px' }}>{espacoEmEdicao ? 'Editar espaço' : 'Novo espaço'}</p>
+                <div style={{ display: 'grid', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome *</label>
+                    <input type="text" value={formEspNome} onChange={(e) => setFormEspNome(e.target.value)}
+                      placeholder="ex: Cozinha principal"
+                      style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Descrição (opcional)</label>
+                    <input type="text" value={formEspDescricao} onChange={(e) => setFormEspDescricao(e.target.value)}
+                      placeholder="ex: Zona quente e fria"
+                      style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                    <button onClick={guardarEspaco} disabled={aGuardarEspaco}
+                      style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+                      {aGuardarEspaco ? 'A guardar...' : 'Guardar'}
+                    </button>
+                    <button onClick={fecharFormEspaco} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {espacos.length === 0 ? (
-            <p style={{ color: '#6b7280', fontSize: '13px' }}>Ainda não há espaços nesta loja.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {espacos.map((esp) => {
-                const expandido = !!espacosExpandidos[esp.id]
-                const tarefas = tarefasPorEspaco[esp.id] || []
-                return (
-                  <div key={esp.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f9fafb', cursor: 'pointer' }} onClick={() => toggleExpandirEspaco(esp.id)}>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: '14px', fontWeight: '500', color: '#111', margin: 0 }}>
-                          {expandido ? '▼' : '▶'} {esp.nome}
-                          <span style={{ fontSize: '12px', color: '#6b7280', fontWeight: '400', marginLeft: '8px' }}>({tarefas.length})</span>
-                        </p>
-                        {esp.descricao && <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0 18px' }}>{esp.descricao}</p>}
-                      </div>
-                      <div style={{ display: 'flex', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => abrirFormEditarEspaco(esp)} style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
-                        <button onClick={() => apagarEspaco(esp)} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
-                      </div>
-                    </div>
-                    {expandido && (
-                      <div style={{ padding: '12px 14px', borderTop: '1px solid #e5e7eb' }}>
-                        {tarefas.length === 0 ? (
-                          <p style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic', margin: '0 0 10px' }}>Sem tarefas. Adiciona a primeira em baixo.</p>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
-                            {tarefas.map((t) => (
-                              <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: '#fff', border: '1px solid #f3f4f6', borderRadius: '6px' }}>
-                                {tarefaEmEdicaoId === t.id ? (
-                                  <>
-                                    <input type="text" value={formTarefaTexto} onChange={(e) => setFormTarefaTexto(e.target.value)}
-                                      style={{ flex: 1, border: '1px solid #d1d5db', padding: '4px 8px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff', marginRight: '6px' }} />
-                                    <button onClick={() => guardarEdicaoTarefa(t.id)} style={{ background: '#80c944', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', marginRight: '4px' }}>Guardar</button>
-                                    <button onClick={cancelarEdicaoTarefa} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Cancelar</button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <span style={{ fontSize: '13px', color: '#111' }}>• {t.tarefa}</span>
-                                    <div style={{ display: 'flex', gap: '4px' }}>
-                                      <button onClick={() => iniciarEdicaoTarefa(t)} style={{ background: 'transparent', border: 'none', color: '#1e40af', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
-                                      <button onClick={() => apagarTarefa(t)} style={{ background: 'transparent', border: 'none', color: '#991b1b', fontSize: '12px', cursor: 'pointer' }}>×</button>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <input type="text" value={novaTarefaPorEspaco[esp.id] || ''}
-                            onChange={(e) => setNovaTarefaPorEspaco((prev) => ({ ...prev, [esp.id]: e.target.value }))}
-                            onKeyDown={(e) => { if (e.key === 'Enter') adicionarTarefa(esp.id) }}
-                            placeholder="Nova tarefa..."
-                            style={{ flex: 1, border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff' }} />
-                          <button onClick={() => adicionarTarefa(esp.id)} disabled={aGuardarTarefa}
-                            style={{ background: '#80c944', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontWeight: '500' }}>+ Adicionar</button>
+            {espacos.length === 0 ? (
+              <p style={{ color: '#6b7280', fontSize: '13px' }}>Ainda não há espaços nesta loja.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {espacos.map((esp) => {
+                  const expandido = !!espacosExpandidos[esp.id]
+                  const tarefas = tarefasPorEspaco[esp.id] || []
+                  return (
+                    <div key={esp.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f9fafb', cursor: 'pointer' }} onClick={() => toggleExpandirEspaco(esp.id)}>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: '14px', fontWeight: '500', color: '#111', margin: 0 }}>
+                            {expandido ? '▼' : '▶'} {esp.nome}
+                            <span style={{ fontSize: '12px', color: '#6b7280', fontWeight: '400', marginLeft: '8px' }}>({tarefas.length})</span>
+                          </p>
+                          {esp.descricao && <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0 18px' }}>{esp.descricao}</p>}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
+                          <button onClick={() => abrirFormEditarEspaco(esp)} style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
+                          <button onClick={() => apagarEspaco(esp)} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
                         </div>
                       </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+                      {expandido && (
+                        <div style={{ padding: '12px 14px', borderTop: '1px solid #e5e7eb' }}>
+                          {tarefas.length === 0 ? (
+                            <p style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic', margin: '0 0 10px' }}>Sem tarefas. Adiciona a primeira em baixo.</p>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
+                              {tarefas.map((t) => (
+                                <div key={t.id} style={{ padding: '8px 10px', background: '#fff', border: '1px solid #f3f4f6', borderRadius: '6px' }}>
+                                  {tarefaEmEdicaoId === t.id ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                      <div>
+                                        <label style={{ fontSize: '11px', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Tarefa</label>
+                                        <input type="text" value={formTarefaTexto} onChange={(e) => setFormTarefaTexto(e.target.value)}
+                                          placeholder="ex: Limpar bancadas"
+                                          style={{ width: '100%', border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff', boxSizing: 'border-box' }} />
+                                      </div>
+                                      <div>
+                                        <label style={{ fontSize: '11px', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Notas (periodicidade, detalhes)</label>
+                                        <textarea value={formTarefaNotas} onChange={(e) => setFormTarefaNotas(e.target.value)} rows={2}
+                                          placeholder="ex: Diário, antes do serviço. Usar desengordurante."
+                                          style={{ width: '100%', border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff', boxSizing: 'border-box', resize: 'vertical' }} />
+                                      </div>
+                                      <div style={{ display: 'flex', gap: '6px' }}>
+                                        <button onClick={() => guardarEdicaoTarefa(t.id)} style={{ background: '#80c944', color: '#fff', border: 'none', padding: '5px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Guardar</button>
+                                        <button onClick={cancelarEdicaoTarefa} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '5px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Cancelar</button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                      <div style={{ flex: 1 }}>
+                                        <p style={{ fontSize: '13px', color: '#111', margin: 0 }}>• {t.tarefa}</p>
+                                        {t.notas && <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0 10px', fontStyle: 'italic' }}>📝 {t.notas}</p>}
+                                      </div>
+                                      <div style={{ display: 'flex', gap: '4px' }}>
+                                        <button onClick={() => iniciarEdicaoTarefa(t)} style={{ background: 'transparent', border: 'none', color: '#1e40af', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
+                                        <button onClick={() => apagarTarefa(t)} style={{ background: 'transparent', border: 'none', color: '#991b1b', fontSize: '12px', cursor: 'pointer' }}>×</button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px', background: '#f9fafb', borderRadius: '6px' }}>
+                            <p style={{ fontSize: '11px', color: '#6b7280', margin: 0, fontWeight: '500' }}>Adicionar nova tarefa</p>
+                            <input type="text" value={novaTarefaPorEspaco[esp.id] || ''}
+                              onChange={(e) => setNovaTarefaPorEspaco((prev) => ({ ...prev, [esp.id]: e.target.value }))}
+                              placeholder="Nome da tarefa..."
+                              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff', boxSizing: 'border-box' }} />
+                            <textarea value={novaTarefaNotasPorEspaco[esp.id] || ''}
+                              onChange={(e) => setNovaTarefaNotasPorEspaco((prev) => ({ ...prev, [esp.id]: e.target.value }))}
+                              placeholder="Notas (periodicidade, produtos a usar, detalhes...)"
+                              rows={2}
+                              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff', boxSizing: 'border-box', resize: 'vertical' }} />
+                            <button onClick={() => adicionarTarefa(esp.id)} disabled={aGuardarTarefa}
+                              style={{ background: '#80c944', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontWeight: '500', alignSelf: 'flex-start' }}>
+                              {aGuardarTarefa ? 'A guardar...' : '+ Adicionar tarefa'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </>
     )
   }
@@ -1181,11 +1252,14 @@ export default function HaccpHome() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {tarefas.map((t) => (
-                  <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', cursor: 'pointer', background: formLimpezaTarefasConcluidas[t.id] ? '#f0fdf4' : '#fff' }}>
+                  <label key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', cursor: 'pointer', background: formLimpezaTarefasConcluidas[t.id] ? '#f0fdf4' : '#fff' }}>
                     <input type="checkbox" checked={!!formLimpezaTarefasConcluidas[t.id]}
                       onChange={() => toggleTarefaConcluida(t.id)}
-                      style={{ width: '18px', height: '18px', accentColor: '#80c944', cursor: 'pointer' }} />
-                    <span style={{ fontSize: '13px', color: '#111' }}>{t.tarefa}</span>
+                      style={{ width: '18px', height: '18px', accentColor: '#80c944', cursor: 'pointer', marginTop: '1px' }} />
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: '13px', color: '#111' }}>{t.tarefa}</span>
+                      {t.notas && <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0', fontStyle: 'italic' }}>📝 {t.notas}</p>}
+                    </div>
                   </label>
                 ))}
               </div>

@@ -39,11 +39,7 @@ export default function Login() {
     console.log('perfil:', perfil)
     console.log('perfilError:', perfilError)
 
-    if (perfil?.role === 'gestor') {
-      router.push('/')
-    } else {
-      router.push('/tablet')
-    }
+    router.push('/')
 
     setACarregar(false)
   }

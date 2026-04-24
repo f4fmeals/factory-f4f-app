@@ -842,8 +842,8 @@ export default function Home() {
         ingredienteNome: grupo.ingredienteNome,
         unidade: grupo.unidade,
         tarefas: Object.values(tarefasAgrupadas).sort((a, b) =>
-          a.ordem !== b.ordem ? a.ordem - b.ordem
-            : a.tarefa !== b.tarefa ? a.tarefa.localeCompare(b.tarefa)
+          a.tarefa !== b.tarefa
+            ? a.tarefa.localeCompare(b.tarefa)
             : a.componente.localeCompare(b.componente)
         ),
       }
@@ -1545,16 +1545,16 @@ export default function Home() {
 
           {/* ── PREPARAÇÃO ── */}
           {secaoExportar === 'preparacao' && (
-            <div className="print-section">
+            <div className="print-section print-preparacao">
               {listaPreparacaoPDF.length === 0 ? <p>Sem dados de preparação.</p> : listaPreparacaoPDF.map((grupo) => (
                 <div key={grupo.chave} className="print-block">
                   <h2 className="print-ingrediente-titulo">{grupo.ingredienteNome}</h2>
                   <table className="print-table">
                     <thead>
                       <tr>
-                        <th style={{ width: '45%' }}>Tarefa</th>
-                        <th style={{ width: '30%' }}>Componente</th>
+                        <th style={{ width: '50%' }}>Tarefa</th>
                         <th style={{ width: '25%' }}>Quantidade</th>
+                        <th style={{ width: '25%' }}>Componente</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1562,10 +1562,10 @@ export default function Home() {
                         <tr key={idx}>
                           <td>
                             {tarefa.tarefa}
-                            {tarefa.observacoes && <div style={{ fontSize: '9px', color: '#555', marginTop: '2px' }}>Obs: {tarefa.observacoes}</div>}
+                            {tarefa.observacoes && <div style={{ fontSize: '13px', color: '#555', marginTop: '2px' }}>Obs: {tarefa.observacoes}</div>}
                           </td>
-                          <td>{tarefa.componente}</td>
                           <td>{formatarQuantidade(tarefa.quantidade, tarefa.unidade)}</td>
+                          <td>{tarefa.componente}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1794,6 +1794,9 @@ export default function Home() {
           .print-table th, .print-table td { border: 1px solid #666; padding: 3px 5px; text-align: left; vertical-align: top; word-wrap: break-word; font-size: 10px; }
           .print-table th { font-weight: 700; background: #f1f1f1 !important; }
           .print-table tr:nth-child(even) td { background: #fafafa !important; }
+          .print-preparacao .print-table th,
+          .print-preparacao .print-table td { font-size: 14px; }
+          .print-preparacao .print-ingrediente-titulo { font-size: 18px; }
         }
       `}</style>
     </>
