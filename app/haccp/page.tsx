@@ -220,7 +220,7 @@ export default function HaccpHome() {
   async function carregarInstalacoes() {
     setACarregarInstalacoes(true)
     const { data, error } = await supabase
-      .from('haccp_instalacoes')
+      .from('instalacoes')
       .select('*')
       .eq('ativo', true)
       .order('ordem', { ascending: true })
@@ -266,11 +266,11 @@ export default function HaccpHome() {
     setAGuardarInst(true)
     const payload = { nome, morada: formInstMorada.trim() || null }
     if (instalacaoEmEdicao) {
-      const { error } = await supabase.from('haccp_instalacoes').update(payload).eq('id', instalacaoEmEdicao.id)
+      const { error } = await supabase.from('instalacoes').update(payload).eq('id', instalacaoEmEdicao.id)
       if (error) { alert('Erro ao atualizar loja.'); setAGuardarInst(false); return }
       if (instalacaoSel?.id === instalacaoEmEdicao.id) setInstalacaoSel({ ...instalacaoSel, ...payload })
     } else {
-      const { error } = await supabase.from('haccp_instalacoes').insert([payload])
+      const { error } = await supabase.from('instalacoes').insert([payload])
       if (error) { alert('Erro ao criar loja.'); setAGuardarInst(false); return }
     }
     fecharFormInstalacao()
@@ -281,7 +281,7 @@ export default function HaccpHome() {
   async function apagarInstalacao(inst: Instalacao) {
     if (!ehGestor) return
     if (!window.confirm(`Apagar a loja "${inst.nome}"? Todos os equipamentos, espaços e registos associados serão também apagados.`)) return
-    const { error } = await supabase.from('haccp_instalacoes').delete().eq('id', inst.id)
+    const { error } = await supabase.from('instalacoes').delete().eq('id', inst.id)
     if (error) { alert('Erro ao apagar a loja.'); return }
     if (instalacaoSel?.id === inst.id) trocarInstalacao()
     await carregarInstalacoes()
