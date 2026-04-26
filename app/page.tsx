@@ -36,8 +36,8 @@ export default function Inicio() {
     const rolesPermitidos: Record<string, string[]> = {
       gestao: ['gestor'],
       cozinha: ['cozinha', 'gestor'],
-      haccp: ['cozinha', 'gestor'],
-      faltas: ['cozinha', 'gestor'],
+      haccp: ['cozinha', 'gestor', 'lojista'],
+      faltas: ['cozinha', 'gestor', 'lojista'],
     }
     if (!rolesPermitidos[area].includes(role)) {
       setMensagemErro('Não tens acesso a esta área.')

@@ -98,7 +98,7 @@ export default function FaltasHome() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       const { data: perfil } = await supabase.from('perfis').select('nome, role').eq('id', user.id).single()
-      if (!perfil || !['gestor', 'cozinha'].includes(perfil.role)) {
+      if (!perfil || !['gestor', 'cozinha', 'lojista'].includes(perfil.role)) {
         router.push('/')
         return
       }
