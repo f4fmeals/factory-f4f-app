@@ -227,6 +227,7 @@ type GrupoEmbalamento = {
   chave: string
   prato: string
   prioridade: number | null
+  categoria_prato: string | null  // ALTERAÇÃO 1
   tamanhos: LinhaEmbalamentoTamanho[]
 }
 
@@ -334,6 +335,7 @@ export default function Home() {
   const [aCarregarDetalhes, setACarregarDetalhes] = useState(false)
   const [producaoEmEdicaoId, setProducaoEmEdicaoId] = useState<number | null>(null)
   const [nomeEdicao, setNomeEdicao] = useState('')
+  const [dataEdicao, setDataEdicao] = useState('')  // ALTERAÇÃO 4
   const [aAtualizarProducao, setAAtualizarProducao] = useState(false)
   const [aApagarProducaoId, setAApagarProducaoId] = useState<number | null>(null)
   const [aAtivarProducaoId, setAAtivarProducaoId] = useState<number | null>(null)
@@ -465,18 +467,30 @@ export default function Home() {
     }
   }
 
-  function iniciarEdicaoProducao(producao: ProducaoSemanal) { setProducaoEmEdicaoId(producao.id); setNomeEdicao(producao.nome_semana) }
-  function cancelarEdicaoProducao() { setProducaoEmEdicaoId(null); setNomeEdicao('') }
+  // ALTERAÇÃO 5
+  function iniciarEdicaoProducao(producao: ProducaoSemanal) {
+    setProducaoEmEdicaoId(producao.id)
+    setNomeEdicao(producao.nome_semana)
+    setDataEdicao(producao.data_inicio)
+  }
 
+  // ALTERAÇÃO 6
+  function cancelarEdicaoProducao() {
+    setProducaoEmEdicaoId(null)
+    setNomeEdicao('')
+    setDataEdicao('')
+  }
+
+  // ALTERAÇÃO 7
   async function guardarNovoNomeProducao(id: number) {
     const nomeLimpo = nomeEdicao.trim()
     if (!nomeLimpo) { alert('Introduz um nome válido.'); return }
     setAAtualizarProducao(true)
-    const { error } = await supabase.from('producoes_semanais').update({ nome_semana: nomeLimpo }).eq('id', id)
+    const { error } = await supabase.from('producoes_semanais').update({ nome_semana: nomeLimpo, data_inicio: dataEdicao }).eq('id', id)
     if (error) { alert('Erro ao atualizar o nome do plano.'); setAAtualizarProducao(false); return }
-    if (producaoSelecionada?.id === id) setProducaoSelecionada({ ...producaoSelecionada, nome_semana: nomeLimpo })
-    setProducoes((prev) => prev.map((prod) => prod.id === id ? { ...prod, nome_semana: nomeLimpo } : prod))
-    setProducaoEmEdicaoId(null); setNomeEdicao(''); setAAtualizarProducao(false)
+    if (producaoSelecionada?.id === id) setProducaoSelecionada({ ...producaoSelecionada, nome_semana: nomeLimpo, data_inicio: dataEdicao })
+    setProducoes((prev) => prev.map((prod) => prod.id === id ? { ...prod, nome_semana: nomeLimpo, data_inicio: dataEdicao } : prod))
+    setProducaoEmEdicaoId(null); setNomeEdicao(''); setDataEdicao(''); setAAtualizarProducao(false)
   }
 
   async function ativarProducao(producao: ProducaoSemanal) {
@@ -817,7 +831,6 @@ export default function Home() {
       const tarefasAgrupadas: Record<string, { tarefa: string; componente: string; observacoes: string | null; quantidade: number; unidade: string | null; ordem: number }> = {}
       grupo.pratos.forEach((prato: any) => {
         prato.tarefas.forEach((tarefa: any) => {
-          // Chave inclui tarefa + componente + observações + unidade para NÃO colapsar tarefas distintas
           const chave = [
             normalizarTexto(tarefa.tarefa),
             normalizarTexto(tarefa.componente),
@@ -886,8 +899,6 @@ export default function Home() {
     })).filter((grupo: any) => grupo.tarefas.length > 0).sort((a: any, b: any) => a.prioridadeMinima !== b.prioridadeMinima ? a.prioridadeMinima - b.prioridadeMinima : a.componenteNome.localeCompare(b.componenteNome))
   }, [detalhesProducao, pratosComponentes, tarefasConfeccaoNovo])
 
-  // Lista de confeção ORDENADA para o PDF, seguindo a ordem dos pratos nos detalhes (igual ao embalamento).
-  // Cada componente é posicionado com base no primeiro prato (na ordem dos detalhes) que o usa.
   const listaConfeccaoPDF = useMemo(() => {
     const indicePrimeiroPratoPorComponente: Record<string, number> = {}
     listaConfeccao.forEach((bloco: any) => {
@@ -955,18 +966,19 @@ export default function Home() {
     return resultado
   }, [listaConfeccao, detalhesProducao, pratosComponentes, componentesIngredientes, ingredientesInfo])
 
+  // ALTERAÇÃO 2 — listaEmbalamento agora inclui categoria_prato no grupo
   const listaEmbalamento = useMemo(() => {
     const agrupado: Record<string, GrupoEmbalamento> = {}
     detalhesProducao.forEach((item) => {
       const pratoId = Number(item.pratos?.id); const pratoNome = item.pratos?.nome || 'Prato'
       const prioridade = item.pratos?.prioridade_embalamento ?? null; const tamanho = item.pratos?.tamanho || '-'
       const sku = item.pratos?.sku || '-'; const quantidade = Number(item.quantidade || 0)
+      const categoriaPrato = item.pratos?.categoria_prato ?? null
       const componentesDoPrato = pratosComponentes.filter((pc) => Number(pc.prato_id) === pratoId).sort((a, b) => Number(a.ordem) - Number(b.ordem)).map((componente) => ({ id: componente.id, nome: componente.componentes?.nome || 'Componente', peso: parseNumero(componente.quantidade_final), unidade: componente.unidade, posicao: componente.posicao_embalagem || '-', ordem: Number(componente.ordem || 0) }))
       const chaveGrupo = normalizarTexto(pratoNome)
-      if (!agrupado[chaveGrupo]) agrupado[chaveGrupo] = { chave: chaveGrupo, prato: pratoNome, prioridade, tamanhos: [] }
+      if (!agrupado[chaveGrupo]) agrupado[chaveGrupo] = { chave: chaveGrupo, prato: pratoNome, prioridade, categoria_prato: categoriaPrato, tamanhos: [] }
       agrupado[chaveGrupo].tamanhos.push({ chave: String(item.id), tamanho, sku, quantidade, componentes: componentesDoPrato })
     })
-    // Ordenar pela ordem dos detalhes (não pela prioridade)
     return ordemPratosDetalhes
       .filter((chave) => agrupado[chave])
       .map((chave) => ({ ...agrupado[chave], tamanhos: agrupado[chave].tamanhos.sort(ordenarTamanhoPadrao) }))
@@ -1148,8 +1160,13 @@ export default function Home() {
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
                     {producaoEmEdicaoId === p.id ? (
-                      <input type="text" value={nomeEdicao} onChange={(e) => setNomeEdicao(e.target.value)}
-                        style={{ width: '100%', border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '14px', color: '#111', background: '#fff', boxSizing: 'border-box' }} />
+                      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {/* ALTERAÇÃO 8 — campo nome + campo data no formulário de renomear */}
+                        <input type="text" value={nomeEdicao} onChange={(e) => setNomeEdicao(e.target.value)}
+                          style={{ width: '100%', border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '14px', color: '#111', background: '#fff', boxSizing: 'border-box' }} />
+                        <input type="date" value={dataEdicao} onChange={(e) => setDataEdicao(e.target.value)}
+                          style={{ width: '100%', border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff', boxSizing: 'border-box' }} />
+                      </div>
                     ) : (
                       <p style={{ fontSize: '15px', fontWeight: '500', margin: '0', color: '#111' }}>{p.nome_semana}</p>
                     )}
@@ -1157,7 +1174,9 @@ export default function Home() {
                       <span style={{ backgroundColor: '#80c944', color: '#fff', fontSize: '10px', fontWeight: '600', padding: '2px 8px', borderRadius: '99px', whiteSpace: 'nowrap' }}>✓ Ativo</span>
                     )}
                   </div>
-                  <p style={{ fontSize: '12px', color: '#6b7280', margin: '0' }}>{p.data_inicio}</p>
+                  {producaoEmEdicaoId !== p.id && (
+                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '0' }}>{p.data_inicio}</p>
+                  )}
                   {resumoProducoes[p.id] && Object.keys(resumoProducoes[p.id]).length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
                       {Object.entries(resumoProducoes[p.id]).sort((a, b) => a[0].localeCompare(b[0])).map(([categoria, count]) => {
@@ -1176,7 +1195,7 @@ export default function Home() {
                 {producaoEmEdicaoId === p.id ? (
                   <>
                     <button onClick={() => guardarNovoNomeProducao(p.id)} disabled={aAtualizarProducao} style={{ backgroundColor: '#80c944', color: '#fff', border: 'none', padding: '5px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>
-                      {aAtualizarProducao ? 'A guardar...' : 'Guardar nome'}
+                      {aAtualizarProducao ? 'A guardar...' : 'Guardar'}
                     </button>
                     <button onClick={cancelarEdicaoProducao} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '5px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Cancelar</button>
                   </>
@@ -1200,7 +1219,6 @@ export default function Home() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <p style={{ fontSize: '16px', fontWeight: '500', margin: '0', color: '#111' }}>Detalhes: {producaoSelecionada.nome_semana}</p>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                {/* ── Botão Imprimir Plano ── */}
                 {!aCarregarDetalhes && detalhesProducao.length > 0 && (
                   <button
                     onClick={() => exportarSecaoPDF('plano')}
@@ -1517,7 +1535,7 @@ export default function Home() {
             {producaoSelecionada && <p><strong>Data:</strong> {producaoSelecionada.data_inicio}</p>}
           </div>
 
-          {/* ── PLANO ── pills em preto e branco com nome, tamanho, SKU e doses */}
+          {/* ── PLANO ── */}
           {secaoExportar === 'plano' && (
             <div className="print-section">
               {gruposDetalhes.length === 0 ? <p>Sem pratos no plano.</p> : (
@@ -1596,8 +1614,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* ── CONFEÇÃO: ordenada pela ordem dos pratos nos detalhes (igual ao embalamento).
-                Ingredientes em pills + linha com pratos destino (nome + quantidade) + tabela só com tarefas ── */}
+          {/* ── CONFEÇÃO ── */}
           {secaoExportar === 'confeccao' && (
             <div className="print-section">
               {listaConfeccaoPDF.length === 0 ? <p>Sem dados de confeção.</p> : listaConfeccaoPDF.map((bloco: any) => (
@@ -1605,7 +1622,6 @@ export default function Home() {
                   <h2>{bloco.componenteNome}</h2>
                   <p className="print-subtitle"><strong>Quantidade total:</strong> {formatarQuantidade(bloco.quantidadeTotal, bloco.unidade)}</p>
                   <p className="print-subtitle"><strong>Prioridade:</strong> {bloco.prioridades.length > 0 ? bloco.prioridades.join(', ') : '-'}</p>
-                  {/* Ingredientes em pills */}
                   {ingredientesPorComponente[bloco.chave]?.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', margin: '6px 0 4px 0' }}>
                       {ingredientesPorComponente[bloco.chave].map((ing: any) => (
@@ -1615,7 +1631,6 @@ export default function Home() {
                       ))}
                     </div>
                   )}
-                  {/* Pratos destino em texto pequeno (nome + quantidade) */}
                   {bloco.pratos?.length > 0 && (
                     <p style={{ fontSize: '9px', color: '#555', margin: '2px 0 6px 0', lineHeight: 1.4 }}>
                       <strong>Para:</strong>{' '}
@@ -1627,7 +1642,6 @@ export default function Home() {
                       ))}
                     </p>
                   )}
-                  {/* Tabela só com tarefas, sem coluna ordem */}
                   <table className="print-table">
                     <thead><tr><th>Tarefa</th></tr></thead>
                     <tbody>{bloco.tarefas.map((tarefa: any) => (<tr key={tarefa.chave}><td>{tarefa.tarefa}</td></tr>))}</tbody>
@@ -1658,11 +1672,10 @@ export default function Home() {
             </div>
           )}
 
-          {/* ── EMBALAMENTO: tamanhos com mesmos componentes (nome + posição) agrupados numa só tabela ── */}
+          {/* ── EMBALAMENTO ── ALTERAÇÃO 3: retângulo no título para "Pratos principais" */}
           {secaoExportar === 'embalamento' && (
             <div className="print-section">
               {listaEmbalamento.length === 0 ? <p>Sem dados de embalamento.</p> : listaEmbalamento.map((grupo) => {
-                // Agrupar tamanhos cuja "assinatura" de componentes (nome + posição + unidade, por ordem) é igual
                 const subgrupos: { assinatura: string; tamanhos: typeof grupo.tamanhos; componentesBase: typeof grupo.tamanhos[0]['componentes'] }[] = []
                 grupo.tamanhos.forEach((linha) => {
                   const componentesOrdenados = [...linha.componentes].sort((a, b) => a.ordem - b.ordem)
@@ -1679,7 +1692,18 @@ export default function Home() {
 
                 return (
                   <div key={grupo.chave} className="print-block">
-                    <h2>{grupo.prato}</h2>
+                    {/* ALTERAÇÃO 3 — retângulo à volta do título se for "Pratos principais" */}
+                    {grupo.categoria_prato === 'Pratos principais' ? (
+                      <h2 style={{
+                        display: 'inline-block',
+                        border: '2px solid #000',
+                        padding: '3px 12px',
+                        borderRadius: '3px',
+                        marginBottom: '4px',
+                      }}>{grupo.prato}</h2>
+                    ) : (
+                      <h2>{grupo.prato}</h2>
+                    )}
                     <p className="print-subtitle">Prioridade: {grupo.prioridade ?? '-'}</p>
                     {subgrupos.map((sub, subIdx) => {
                       const tamanhosOrdenados = [...sub.tamanhos].sort(ordenarTamanhoPadrao)
@@ -1704,7 +1728,6 @@ export default function Home() {
                                   <td>{compBase.nome}</td>
                                   <td>{compBase.posicao}</td>
                                   {tamanhosOrdenados.map((t) => {
-                                    // Encontrar o componente correspondente neste tamanho (mesmo nome + posição)
                                     const compNesteTamanho = t.componentes.find((c) =>
                                       normalizarTexto(c.nome) === normalizarTexto(compBase.nome) &&
                                       normalizarTexto(c.posicao) === normalizarTexto(compBase.posicao)
@@ -1736,12 +1759,12 @@ export default function Home() {
     <>
       <main className="no-print min-h-screen bg-white text-black">
         <div style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #e5e7eb', padding: '6px 32px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-    {nomeUtilizador && <span style={{ color: '#6b7280', fontSize: '13px' }}>Olá, {nomeUtilizador}</span>}
-    <button onClick={() => window.location.href = '/'} style={{ background: '#fff', border: '1px solid #d1d5db', padding: '6px 14px', borderRadius: '8px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>← Início</button>
-    <button onClick={handleLogout} style={{ backgroundColor: 'transparent', border: 'none', color: '#6b7280', fontSize: '13px', cursor: 'pointer' }}>Sair da sessão</button>
-  </div>
-</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {nomeUtilizador && <span style={{ color: '#6b7280', fontSize: '13px' }}>Olá, {nomeUtilizador}</span>}
+            <button onClick={() => window.location.href = '/'} style={{ background: '#fff', border: '1px solid #d1d5db', padding: '6px 14px', borderRadius: '8px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>← Início</button>
+            <button onClick={handleLogout} style={{ backgroundColor: 'transparent', border: 'none', color: '#6b7280', fontSize: '13px', cursor: 'pointer' }}>Sair da sessão</button>
+          </div>
+        </div>
         <div className="p-8">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold">Valente Kitchen OS</h1>
