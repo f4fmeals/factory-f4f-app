@@ -58,8 +58,18 @@ export default function Inicio() {
       </div>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px' }}>
-        <p style={{ fontSize: '28px', fontWeight: '600', color: '#111', marginBottom: '8px' }}>Cozinha Industrial</p>
-        <p style={{ fontSize: '15px', color: '#6b7280', marginBottom: '48px' }}>Escolhe a área que queres aceder</p>
+
+        {/* Logo */}
+        <div style={{ marginBottom: '24px' }}>
+          <img
+  src="/logo_cor.png"
+  alt="F4F Meals Engine"
+  style={{ height: '120px', width: 'auto', objectFit: 'contain' }}
+/>
+        </div>
+
+        <p style={{ fontSize: '28px', fontWeight: '600', color: '#111', marginBottom: '8px' }}>F4F MEALS ENGINE</p>
+        <p style={{ fontSize: '15px', color: '#6b7280', marginBottom: '48px' }}>Escolhe a área que queres aceder.</p>
 
         <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button
@@ -71,7 +81,7 @@ export default function Inicio() {
           >
             <span style={{ fontSize: '48px' }}>📋</span>
             <span style={{ fontSize: '18px', fontWeight: '500', color: '#111' }}>Gestão</span>
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>Planeamento e produção</span>
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>Valente Kitchen OS</span>
           </button>
 
           <button
@@ -83,7 +93,7 @@ export default function Inicio() {
           >
             <span style={{ fontSize: '48px' }}>👨‍🍳</span>
             <span style={{ fontSize: '18px', fontWeight: '500', color: '#111' }}>Cozinha</span>
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>Execução e registo</span>
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>Execução e Registo</span>
           </button>
 
           <button
@@ -95,7 +105,7 @@ export default function Inicio() {
           >
             <span style={{ fontSize: '48px' }}>🧪</span>
             <span style={{ fontSize: '18px', fontWeight: '500', color: '#111' }}>HACCP</span>
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>Controlo e registos</span>
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>Controlo e Registos</span>
           </button>
 
           <button
@@ -107,7 +117,7 @@ export default function Inicio() {
           >
             <span style={{ fontSize: '48px' }}>🛒</span>
             <span style={{ fontSize: '18px', fontWeight: '500', color: '#111' }}>Faltas</span>
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>Lista de compras</span>
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>Lista de Compras</span>
           </button>
         </div>
 
