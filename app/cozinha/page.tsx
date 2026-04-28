@@ -113,7 +113,6 @@ function coresCategoria(cat: string | null | undefined) {
   return CORES_CATEGORIA[cat] || { bg: '#f3f4f6', texto: '#111827', borda: '#d1d5db' }
 }
 
-// Pill reutilizável para tarefas concluídas
 function PillConcluido({ label, onDesfazer }: { label: string; onDesfazer: () => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '99px', padding: '6px 12px', gap: '8px' }}>
@@ -168,23 +167,23 @@ export default function Cozinha() {
 
   useEffect(() => {
     if (!producaoAtiva) return
-    const channel = supabase.channel('registos_cozinha')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'registos_producao', filter: `producao_semanal_id=eq.${producaoAtiva.id}` },
+    const channel = supabase.channel(`registos_cozinha_${producaoAtiva.id}_${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'registos_producao' },
         (payload) => {
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const r = payload.new
-            if (r.setor === 'embalamento_grupo') {
-              const chave = `emb|${r.referencia_id}`
-              let extrasPorTamanho: Record<number, number> = {}
-              try { if (r.quantidade_extras) extrasPorTamanho = JSON.parse(r.quantidade_extras) } catch {}
-              setRegistosEmbalamento(prev => ({
-                ...prev,
-                [chave]: { id: r.id, concluido: r.concluido, extras: r.extras, extrasPorTamanho, etiquetasImpressas: r.observacoes === 'etiquetas_impressas' }
-              }))
-            } else {
-              const chave = `${r.setor}|${r.referencia_id}`
-              setRegistos(prev => ({ ...prev, [chave]: { id: r.id, concluido: r.concluido, quantidade_final: r.quantidade_final, temperatura_confeccao: r.temperatura_confeccao, temperatura_abatimento: r.temperatura_abatimento, extras: r.extras, quantidade_extras: r.quantidade_extras, impressao_etiqueta: r.impressao_etiqueta || false } }))
-            }
+          const r = payload.new as any
+          if (r.producao_semanal_id !== producaoAtiva.id) return
+
+          if (r.setor === 'embalamento_grupo') {
+            const chave = `emb|${r.referencia_id}`
+            let extrasPorTamanho: Record<number, number> = {}
+            try { if (r.quantidade_extras) extrasPorTamanho = JSON.parse(r.quantidade_extras) } catch {}
+            setRegistosEmbalamento(prev => ({
+              ...prev,
+              [chave]: { id: r.id, concluido: r.concluido, extras: r.extras, extrasPorTamanho, etiquetasImpressas: r.observacoes === 'etiquetas_impressas' }
+            }))
+          } else {
+            const chave = `${r.setor}|${r.referencia_id}`
+            setRegistos(prev => ({ ...prev, [chave]: { id: r.id, concluido: r.concluido, quantidade_final: r.quantidade_final, temperatura_confeccao: r.temperatura_confeccao, temperatura_abatimento: r.temperatura_abatimento, extras: r.extras, quantidade_extras: r.quantidade_extras, impressao_etiqueta: r.impressao_etiqueta || false } }))
           }
         })
       .subscribe()
@@ -248,43 +247,60 @@ export default function Cozinha() {
     }
   }
 
+  // CORRIGIDO: usa upsert em vez de insert/update separados
   async function guardarRegisto(setor: string, referenciaId: number, dados: Partial<Registo>) {
     if (!producaoAtiva) return
     const chave = `${setor}|${referenciaId}`
-    const existente = registos[chave]
-    const novo = { ...existente, ...dados }
-    setRegistos(prev => ({ ...prev, [chave]: novo as Registo }))
-    if (existente?.id) {
-      await supabase.from('registos_producao').update({ ...dados, atualizado_em: new Date().toISOString() }).eq('id', existente.id)
-    } else {
-      const { data } = await supabase.from('registos_producao').insert({ producao_semanal_id: producaoAtiva.id, setor, referencia_id: referenciaId, ...dados }).select().single()
-      if (data) setRegistos(prev => ({ ...prev, [chave]: { ...novo, id: data.id } as Registo }))
+    setRegistos(prev => ({ ...prev, [chave]: { ...prev[chave], ...dados } as Registo }))
+
+    const { data } = await supabase
+      .from('registos_producao')
+      .upsert(
+        {
+          producao_semanal_id: producaoAtiva.id,
+          setor,
+          referencia_id: referenciaId,
+          ...dados,
+          atualizado_em: new Date().toISOString(),
+        },
+        { onConflict: 'producao_semanal_id,setor,referencia_id' }
+      )
+      .select()
+      .single()
+
+    if (data) {
+      setRegistos(prev => ({ ...prev, [chave]: { ...prev[chave], id: data.id } as Registo }))
     }
   }
 
+  // CORRIGIDO: usa upsert em vez de insert/update separados
   async function guardarRegistoEmbalamento(chaveGrupo: string, referenciaId: number, dados: Partial<RegistoEmbalamento>) {
     if (!producaoAtiva) return
-    const existente = registosEmbalamento[chaveGrupo]
-    const novo = { ...existente, ...dados }
-    setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: novo as RegistoEmbalamento }))
+    setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: { ...prev[chaveGrupo], ...dados } as RegistoEmbalamento }))
+
     const dadosDB: any = { atualizado_em: new Date().toISOString() }
     if ('concluido' in dados) dadosDB.concluido = dados.concluido
     if ('extras' in dados) dadosDB.extras = dados.extras
     if ('extrasPorTamanho' in dados) dadosDB.quantidade_extras = JSON.stringify(dados.extrasPorTamanho)
     if ('etiquetasImpressas' in dados) dadosDB.observacoes = dados.etiquetasImpressas ? 'etiquetas_impressas' : null
-    if (existente?.id) {
-      await supabase.from('registos_producao').update(dadosDB).eq('id', existente.id)
-    } else {
-      const { data } = await supabase.from('registos_producao').insert({
-        producao_semanal_id: producaoAtiva.id,
-        setor: 'embalamento_grupo',
-        referencia_id: referenciaId,
-        concluido: dados.concluido ?? false,
-        extras: dados.extras ?? null,
-        quantidade_extras: dados.extrasPorTamanho ? JSON.stringify(dados.extrasPorTamanho) : null,
-        observacoes: dados.etiquetasImpressas ? 'etiquetas_impressas' : null,
-      }).select().single()
-      if (data) setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: { ...novo, id: data.id } as RegistoEmbalamento }))
+
+    const { data } = await supabase
+      .from('registos_producao')
+      .upsert(
+        {
+          producao_semanal_id: producaoAtiva.id,
+          setor: 'embalamento_grupo',
+          referencia_id: referenciaId,
+          concluido: dados.concluido ?? registosEmbalamento[chaveGrupo]?.concluido ?? false,
+          ...dadosDB,
+        },
+        { onConflict: 'producao_semanal_id,setor,referencia_id' }
+      )
+      .select()
+      .single()
+
+    if (data) {
+      setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: { ...prev[chaveGrupo], id: data.id } as RegistoEmbalamento }))
     }
   }
 
@@ -637,7 +653,8 @@ export default function Cozinha() {
 
     const todosExtras: { pratoNome: string; categoria: string | null; itens: { tamanho: string; sku: string; quantidade: number }[]; etiquetasImpressas: boolean; chaveGrupo: string; referenciaId: number }[] = []
     Object.values(gruposNome).forEach(grupo => {
-      const referenciaId = grupo.itens[0]?.id
+      // CORRIGIDO: usa sempre o menor id para garantir consistência entre dispositivos
+      const referenciaId = Math.min(...grupo.itens.map(i => i.id))
       const chaveGrupo = `emb|${referenciaId}`
       const reg = registosEmbalamento[chaveGrupo]
       if (reg?.extras === true) {
@@ -708,7 +725,8 @@ export default function Cozinha() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {gruposDaCat.map(grupo => {
-            const referenciaId = grupo.itens[0]?.id
+            // CORRIGIDO: usa sempre o menor id para garantir consistência entre dispositivos
+            const referenciaId = Math.min(...grupo.itens.map(i => i.id))
             const chaveGrupo = `emb|${referenciaId}`
             const reg = registosEmbalamento[chaveGrupo] || { concluido: false, extras: null, extrasPorTamanho: {}, etiquetasImpressas: false }
             const feito = reg.concluido || false
