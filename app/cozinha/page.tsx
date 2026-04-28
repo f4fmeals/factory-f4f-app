@@ -137,6 +137,7 @@ export default function Cozinha() {
   const [secaoAtiva, setSecaoAtiva] = useState<SecaoAtiva>('preparacao')
   const [categoriaEmbalamento, setCategoriaEmbalamento] = useState<string>('')
   const [mostrarPainelExtras, setMostrarPainelExtras] = useState(false)
+  const [pesquisaEmbalamento, setPesquisaEmbalamento] = useState('')
 
   const [detalhes, setDetalhes] = useState<DetalheProducao[]>([])
   const [pratosComponentes, setPratosComponentes] = useState<PratoComponente[]>([])
@@ -275,42 +276,48 @@ export default function Cozinha() {
 
   // CORRIGIDO: usa upsert em vez de insert/update separados
   async function guardarRegistoEmbalamento(chaveGrupo: string, referenciaId: number, dados: Partial<RegistoEmbalamento>) {
-    if (!producaoAtiva) return
-    
-    const estadoAtual = registosEmbalamento[chaveGrupo] || { concluido: false, extras: null, extrasPorTamanho: {}, etiquetasImpressas: false }
-    const novoEstado = { ...estadoAtual, ...dados }
-    setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: novoEstado as RegistoEmbalamento }))
+  if (!producaoAtiva) return
+  
+  const estadoAtual = registosEmbalamento[chaveGrupo] || { concluido: false, extras: null, extrasPorTamanho: {}, etiquetasImpressas: false }
+  const novoEstado = { ...estadoAtual, ...dados }
+  setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: novoEstado as RegistoEmbalamento }))
 
-    let quantidadeExtrasDB: string | null = null
-    if (novoEstado.extras === true && novoEstado.extrasPorTamanho) {
-      const entries = Object.entries(novoEstado.extrasPorTamanho)
-      if (entries.length > 0) {
-        quantidadeExtrasDB = JSON.stringify(novoEstado.extrasPorTamanho)
-      }
-    }
-
-    const { data } = await supabase
-      .from('registos_producao')
-      .upsert(
-        {
-          producao_semanal_id: producaoAtiva.id,
-          setor: 'embalamento_grupo',
-          referencia_id: referenciaId,
-          concluido: novoEstado.concluido ?? false,
-          extras: novoEstado.extras ?? null,
-          quantidade_extras: quantidadeExtrasDB,
-          observacoes: novoEstado.etiquetasImpressas ? 'etiquetas_impressas' : null,
-          atualizado_em: new Date().toISOString(),
-        },
-        { onConflict: 'producao_semanal_id,setor,referencia_id' }
-      )
-      .select()
-      .single()
-
-    if (data) {
-      setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: { ...novoEstado, id: data.id } as RegistoEmbalamento }))
+  let quantidadeExtrasDB: string | null = null
+  if (novoEstado.extras === true && novoEstado.extrasPorTamanho) {
+    const entries = Object.entries(novoEstado.extrasPorTamanho)
+    if (entries.length > 0) {
+      quantidadeExtrasDB = JSON.stringify(novoEstado.extrasPorTamanho)
     }
   }
+
+  const dadosDB = {
+    producao_semanal_id: producaoAtiva.id,
+    setor: 'embalamento_grupo',
+    referencia_id: referenciaId,
+    concluido: novoEstado.concluido ?? false,
+    extras: novoEstado.extras ?? null,
+    quantidade_extras: quantidadeExtrasDB,
+    atualizado_em: new Date().toISOString(),
+  }
+
+  const existenteId = estadoAtual.id
+  if (existenteId) {
+    const { data } = await supabase
+      .from('registos_producao')
+      .update(dadosDB)
+      .eq('id', existenteId)
+      .select()
+      .single()
+    if (data) setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: { ...novoEstado, id: data.id } as RegistoEmbalamento }))
+  } else {
+    const { data } = await supabase
+      .from('registos_producao')
+      .insert(dadosDB)
+      .select()
+      .single()
+    if (data) setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: { ...novoEstado, id: data.id } as RegistoEmbalamento }))
+  }
+}
 
   function imprimirEtiqueta(dados: { componenteDestino: string; pratoDestino: string; ingrediente: string; quantidade: string; data: string }, onImprimiu: () => void) {
     const conteudo = `
@@ -657,7 +664,9 @@ export default function Cozinha() {
 
     const categorias = ORDEM_CATEGORIAS.filter(c => porCategoria[c]).concat(Object.keys(porCategoria).filter(c => !ORDEM_CATEGORIAS.includes(c)).sort())
     const catAtiva = categoriaEmbalamento || categorias[0] || ''
-    const gruposDaCat = (porCategoria[catAtiva] || []).sort((a, b) => (a.prioridade ?? 999) - (b.prioridade ?? 999) || a.pratoNome.localeCompare(b.pratoNome))
+    const gruposDaCat = (porCategoria[catAtiva] || [])
+  .filter(g => g.pratoNome.toLowerCase().includes(pesquisaEmbalamento.toLowerCase()))
+  .sort((a, b) => (a.prioridade ?? 999) - (b.prioridade ?? 999) || a.pratoNome.localeCompare(b.pratoNome))
 
     const todosExtras: { pratoNome: string; categoria: string | null; itens: { tamanho: string; sku: string; quantidade: number }[]; etiquetasImpressas: boolean; chaveGrupo: string; referenciaId: number }[] = []
     Object.values(gruposNome).forEach(grupo => {
@@ -717,6 +726,13 @@ export default function Cozinha() {
         )}
 
         <div style={{ position: 'sticky', top: '97px', zIndex: 9, background: '#f9fafb', paddingBottom: '10px', borderBottom: '1px solid #e5e7eb', marginBottom: '14px' }}>
+          <input
+  type="text"
+  placeholder="Pesquisar prato..."
+  value={pesquisaEmbalamento}
+  onChange={e => setPesquisaEmbalamento(e.target.value)}
+  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '10px', outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }}
+/>
           <div style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
             {categorias.map(cat => {
               const cores = coresCategoria(cat)
