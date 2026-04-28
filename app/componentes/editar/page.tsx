@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 
 type Ingrediente = {
@@ -220,7 +221,7 @@ function IngredientSearchSelect({
 
 const unidades = ['g', 'kg', 'ml', 'l', 'un']
 
-export default function EditarComponentePage() {
+function EditarComponentePage() {
   const [componentes, setComponentes] = useState<Componente[]>([])
   const [ingredientes, setIngredientes] = useState<Ingrediente[]>([])
 
@@ -285,10 +286,21 @@ export default function EditarComponentePage() {
   ])
 
   const [mensagem, setMensagem] = useState('')
+  const searchParams = useSearchParams()
 
   useEffect(() => {
-    fetchComponentes()
-    fetchIngredientes()
+    async function init() {
+      await fetchComponentes()
+      await fetchIngredientes()
+      const idParam = searchParams.get('id')
+      if (idParam) {
+        const idNumero = Number(idParam)
+        if (!isNaN(idNumero) && idNumero > 0) {
+          await carregarComponente(idNumero)
+        }
+      }
+    }
+    init()
   }, [])
 
   async function fetchComponentes() {
@@ -1301,5 +1313,15 @@ export default function EditarComponentePage() {
         </div>
       </div>
     </main>
+  )
+}
+
+import { Suspense } from 'react'
+
+export default function EditarComponentePageWrapper() {
+  return (
+    <Suspense fallback={<div className="p-8">A carregar...</div>}>
+      <EditarComponentePage />
+    </Suspense>
   )
 }

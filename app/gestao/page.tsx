@@ -1395,7 +1395,7 @@ export default function Home() {
               {listaConfeccao.map((bloco: any) => (
                 <div key={bloco.chave} className="border rounded p-5 bg-white">
                   <div className="mb-5 border-b pb-4">
-                    <p className="text-2xl font-bold">{bloco.componenteNome}</p>
+                    <div style={{display:'flex',alignItems:'center',gap:'10px'}}><p className="text-2xl font-bold" style={{margin:0}}>{bloco.componenteNome}</p><a href={`/componentes/editar?id=${bloco.componenteId}`} target="_blank" rel="noopener noreferrer" style={{background:'#374151',color:'#fff',border:'none',padding:'3px 10px',borderRadius:'5px',fontSize:'11px',fontWeight:'500',cursor:'pointer',textDecoration:'none',whiteSpace:'nowrap'}}>✎ Editar componente</a></div>
                     <p className="text-lg font-bold text-green-700 mt-2">Quantidade total: {formatarQuantidade(bloco.quantidadeTotal, bloco.unidade)}</p>
                     <p className="text-sm text-gray-600 mt-1"><strong>Prioridades:</strong> {bloco.prioridades.length > 0 ? bloco.prioridades.join(', ') : '-'}</p>
                     {ingredientesPorComponente[bloco.chave]?.length > 0 && (
