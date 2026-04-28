@@ -273,37 +273,44 @@ export default function Cozinha() {
     }
   }
 
+  // CORRIGIDO: usa upsert em vez de insert/update separados
   async function guardarRegistoEmbalamento(chaveGrupo: string, referenciaId: number, dados: Partial<RegistoEmbalamento>) {
-  if (!producaoAtiva) return
-  
-  const estadoAtual = registosEmbalamento[chaveGrupo] || { concluido: false, extras: null, extrasPorTamanho: {}, etiquetasImpressas: false }
-  const novoEstado = { ...estadoAtual, ...dados }
-  setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: novoEstado as RegistoEmbalamento }))
+    if (!producaoAtiva) return
+    
+    const estadoAtual = registosEmbalamento[chaveGrupo] || { concluido: false, extras: null, extrasPorTamanho: {}, etiquetasImpressas: false }
+    const novoEstado = { ...estadoAtual, ...dados }
+    setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: novoEstado as RegistoEmbalamento }))
 
-  const { data } = await supabase
-    .from('registos_producao')
-    .upsert(
-      {
-        producao_semanal_id: producaoAtiva.id,
-        setor: 'embalamento_grupo',
-        referencia_id: referenciaId,
-        concluido: novoEstado.concluido ?? false,
-        extras: novoEstado.extras ?? null,
-        quantidade_extras: novoEstado.extrasPorTamanho && Object.keys(novoEstado.extrasPorTamanho).length > 0
-          ? JSON.stringify(novoEstado.extrasPorTamanho)
-          : null,
-        observacoes: novoEstado.etiquetasImpressas ? 'etiquetas_impressas' : null,
-        atualizado_em: new Date().toISOString(),
-      },
-      { onConflict: 'producao_semanal_id,setor,referencia_id' }
-    )
-    .select()
-    .single()
+    let quantidadeExtrasDB: string | null = null
+    if (novoEstado.extras === true && novoEstado.extrasPorTamanho) {
+      const entries = Object.entries(novoEstado.extrasPorTamanho)
+      if (entries.length > 0) {
+        quantidadeExtrasDB = JSON.stringify(novoEstado.extrasPorTamanho)
+      }
+    }
 
-  if (data) {
-    setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: { ...novoEstado, id: data.id } as RegistoEmbalamento }))
+    const { data } = await supabase
+      .from('registos_producao')
+      .upsert(
+        {
+          producao_semanal_id: producaoAtiva.id,
+          setor: 'embalamento_grupo',
+          referencia_id: referenciaId,
+          concluido: novoEstado.concluido ?? false,
+          extras: novoEstado.extras ?? null,
+          quantidade_extras: quantidadeExtrasDB,
+          observacoes: novoEstado.etiquetasImpressas ? 'etiquetas_impressas' : null,
+          atualizado_em: new Date().toISOString(),
+        },
+        { onConflict: 'producao_semanal_id,setor,referencia_id' }
+      )
+      .select()
+      .single()
+
+    if (data) {
+      setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: { ...novoEstado, id: data.id } as RegistoEmbalamento }))
+    }
   }
-}
 
   function imprimirEtiqueta(dados: { componenteDestino: string; pratoDestino: string; ingrediente: string; quantidade: string; data: string }, onImprimiu: () => void) {
     const conteudo = `
