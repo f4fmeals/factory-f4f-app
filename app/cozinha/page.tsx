@@ -297,6 +297,7 @@ export default function Cozinha() {
     concluido: novoEstado.concluido ?? false,
     extras: novoEstado.extras ?? null,
     quantidade_extras: quantidadeExtrasDB,
+    observacoes: novoEstado.etiquetasImpressas ? 'etiquetas_impressas' : null,
     atualizado_em: new Date().toISOString(),
   }
 
