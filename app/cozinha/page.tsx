@@ -197,6 +197,8 @@ export default function Cozinha() {
   const [mostrarPainelExtras, setMostrarPainelExtras] = useState(false)
   const [pesquisaEmbalamento, setPesquisaEmbalamento] = useState('')
   const [pesquisaConfeccao, setPesquisaConfeccao] = useState('')
+  const [pesquisaPreparacao, setPesquisaPreparacao] = useState('')
+  const [pesquisaFinalizacao, setPesquisaFinalizacao] = useState('')
 
   const [detalhes, setDetalhes] = useState<DetalheProducao[]>([])
   const [pratosComponentes, setPratosComponentes] = useState<PratoComponente[]>([])
@@ -480,9 +482,29 @@ export default function Cozinha() {
       })
     })
 
+    const gruposFiltrados = Object.values(grupos)
+      .filter(g => g.ingredienteNome.toLowerCase().includes(pesquisaPreparacao.toLowerCase()))
+      .sort((a, b) => a.ingredienteNome.localeCompare(b.ingredienteNome))
+
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {Object.values(grupos).sort((a, b) => a.ingredienteNome.localeCompare(b.ingredienteNome)).map(grupo => (
+      <div>
+        <div style={{ position: 'sticky', top: '97px', zIndex: 9, background: '#f9fafb', paddingBottom: '10px', borderBottom: '1px solid #e5e7eb', marginBottom: '14px' }}>
+          <input
+            type="text"
+            placeholder="Pesquisar ingrediente..."
+            value={pesquisaPreparacao}
+            onChange={e => setPesquisaPreparacao(e.target.value)}
+            style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {gruposFiltrados.length === 0 && (
+          <p style={{ fontSize: '14px', color: '#6b7280', textAlign: 'center', padding: '40px 0' }}>
+            Nenhum ingrediente encontrado.
+          </p>
+        )}
+        {gruposFiltrados.map(grupo => (
           <div key={grupo.ingredienteNome}>
             <p style={{ fontSize: '13px', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #e5e7eb' }}>
               {grupo.ingredienteNome}
@@ -542,6 +564,7 @@ export default function Cozinha() {
             </div>
           </div>
         ))}
+        </div>
       </div>
     )
   }
@@ -749,9 +772,30 @@ export default function Cozinha() {
       })
     })
 
+    const pratosFiltrados = Object.values(pratosMap)
+      .filter(p => p.tarefas.length > 0)
+      .filter(p => p.pratoNome.toLowerCase().includes(pesquisaFinalizacao.toLowerCase()))
+      .sort((a, b) => a.pratoNome.localeCompare(b.pratoNome))
+
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {Object.values(pratosMap).filter(p => p.tarefas.length > 0).sort((a, b) => a.pratoNome.localeCompare(b.pratoNome)).map(prato => (
+      <div>
+        <div style={{ position: 'sticky', top: '97px', zIndex: 9, background: '#f9fafb', paddingBottom: '10px', borderBottom: '1px solid #e5e7eb', marginBottom: '14px' }}>
+          <input
+            type="text"
+            placeholder="Pesquisar prato..."
+            value={pesquisaFinalizacao}
+            onChange={e => setPesquisaFinalizacao(e.target.value)}
+            style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {pratosFiltrados.length === 0 && (
+          <p style={{ fontSize: '14px', color: '#6b7280', textAlign: 'center', padding: '40px 0' }}>
+            Nenhum prato encontrado.
+          </p>
+        )}
+        {pratosFiltrados.map(prato => (
           <div key={prato.pratoNome}>
             <p style={{ fontSize: '13px', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #e5e7eb' }}>{prato.pratoNome}</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
@@ -787,6 +831,7 @@ export default function Cozinha() {
             </div>
           </div>
         ))}
+        </div>
       </div>
     )
   }
