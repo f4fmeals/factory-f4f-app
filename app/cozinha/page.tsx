@@ -387,12 +387,12 @@ export default function Cozinha() {
         <title>Etiqueta</title>
         <style>
           @page { 
-            size: 51mm 76mm; 
+            size: 76mm 51mm; 
             margin: 0; 
           }
           html, body { 
-            width: 51mm; 
-            height: 76mm; 
+            width: 76mm; 
+            height: 51mm; 
             margin: 0; 
             padding: 0;
           }
