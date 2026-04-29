@@ -384,37 +384,80 @@ export default function Cozinha() {
     const conteudo = `
       <html>
       <head>
+        <title>Etiqueta</title>
         <style>
-          @page { size: 62mm 40mm; margin: 2mm; }
-          body { font-family: Arial, sans-serif; font-size: 9px; margin: 0; padding: 2mm; width: 58mm; }
-          .componente { font-size: 13px; font-weight: bold; margin-bottom: 2px; }
-          .linha { display: flex; justify-content: space-between; margin-bottom: 1px; }
-          .label { color: #666; }
+          @page { 
+            size: 76mm 51mm; 
+            margin: 0; 
+          }
+          html, body { 
+            width: 76mm; 
+            height: 51mm; 
+            margin: 0; 
+            padding: 0;
+          }
+          body {
+            font-family: Arial, sans-serif;
+            padding: 3mm 4mm;
+            box-sizing: border-box;
+            font-size: 10px;
+            color: #000;
+          }
+          .componente { 
+            font-size: 15px; 
+            font-weight: bold; 
+            margin-bottom: 3px;
+            line-height: 1.1;
+          }
+          .prato {
+            font-size: 11px;
+            color: #333;
+            margin-bottom: 4px;
+            line-height: 1.1;
+          }
+          hr { 
+            border: none; 
+            border-top: 0.5px solid #999; 
+            margin: 3px 0; 
+          }
+          .linha { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 2px;
+            font-size: 11px;
+          }
+          .label { color: #555; }
           .valor { font-weight: bold; }
-          .data { font-size: 8px; color: #888; margin-top: 3px; text-align: right; }
-          hr { border: none; border-top: 0.5px solid #ccc; margin: 2px 0; }
+          .data { 
+            font-size: 9px; 
+            color: #666; 
+            margin-top: 4px; 
+            text-align: right; 
+          }
         </style>
       </head>
       <body>
         <div class="componente">${dados.componenteDestino}</div>
+        <div class="prato">→ ${dados.pratoDestino}</div>
         <hr/>
         <div class="linha"><span class="label">Ingrediente</span><span class="valor">${dados.ingrediente}</span></div>
-        <div class="linha"><span class="label">Prato</span><span class="valor">${dados.pratoDestino}</span></div>
         <div class="linha"><span class="label">Quantidade</span><span class="valor">${dados.quantidade}</span></div>
         <div class="data">${dados.data}</div>
       </body>
       </html>
     `
-    const janela = window.open('', '_blank', 'width=300,height=200')
+    const janela = window.open('', '_blank', 'width=400,height=300')
     if (!janela) return
     janela.document.write(conteudo)
     janela.document.close()
     janela.focus()
-    janela.print()
     setTimeout(() => {
-      janela.close()
-      onImprimiu()
-    }, 500)
+      janela.print()
+      setTimeout(() => {
+        janela.close()
+        onImprimiu()
+      }, 500)
+    }, 250)
   }
 
   function parseNum(v: any) {
