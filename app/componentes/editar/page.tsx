@@ -258,7 +258,7 @@ function EditarComponentePage() {
                 <p style={{ padding: '16px', fontSize: '13px', color: '#9ca3af' }}>Nenhum componente encontrado.</p>
               ) : componentesFiltrados.map((comp) => (
                 <button key={comp.id} type="button" onClick={() => carregarComponente(comp.id)}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid #f3f4f6', background: String(comp.id) === componenteSelecionadoId ? '#f0fdf4' : 'none', cursor: 'pointer', border: 'none', borderBottom: '1px solid #f3f4f6' }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '12px 16px', background: String(comp.id) === componenteSelecionadoId ? '#f0fdf4' : 'none', cursor: 'pointer', border: 'none', borderBottom: '1px solid #f3f4f6' }}
                   onMouseEnter={e => { if (String(comp.id) !== componenteSelecionadoId) e.currentTarget.style.background = '#f9fafb' }}
                   onMouseLeave={e => { e.currentTarget.style.background = String(comp.id) === componenteSelecionadoId ? '#f0fdf4' : 'none' }}>
                   <p style={{ fontWeight: '600', fontSize: '14px', margin: '0 0 2px' }}>{comp.nome}</p>
