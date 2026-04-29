@@ -80,6 +80,7 @@ type Registo = {
   quantidade_final: number | null
   temperatura_confeccao: number | null
   temperatura_abatimento: number | null
+  tempo_arrefecimento: number | null
   extras: boolean | null
   quantidade_extras: number | null
   impressao_etiqueta: boolean
@@ -128,6 +129,63 @@ function PillConcluido({ label, onDesfazer }: { label: string; onDesfazer: () =>
   )
 }
 
+// Slider com botões − e + para ajustar valores em tablet
+function SliderComBotoes({
+  valor,
+  min,
+  max,
+  step,
+  onChange,
+  formatarValor,
+  corValor,
+}: {
+  valor: number
+  min: number
+  max: number
+  step: number
+  onChange: (v: number) => void
+  formatarValor: (v: number) => string
+  corValor?: string
+}) {
+  const decrementar = () => {
+    const novo = Math.max(min, Number((valor - step).toFixed(2)))
+    onChange(novo)
+  }
+  const incrementar = () => {
+    const novo = Math.min(max, Number((valor + step).toFixed(2)))
+    onChange(novo)
+  }
+  const estiloBotao: React.CSSProperties = {
+    width: '36px',
+    height: '36px',
+    borderRadius: '8px',
+    border: '1px solid #d1d5db',
+    background: '#fff',
+    fontSize: '18px',
+    fontWeight: '600',
+    color: '#374151',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    padding: 0,
+    lineHeight: 1,
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <button type="button" onClick={decrementar} style={estiloBotao}>−</button>
+      <input type="range" min={min} max={max} step={step} value={valor}
+        onChange={e => onChange(parseFloat(e.target.value))}
+        style={{ flex: 1, accentColor: '#111827' }} />
+      <button type="button" onClick={incrementar} style={estiloBotao}>+</button>
+      <span style={{ fontSize: '14px', fontWeight: '500', minWidth: '70px', textAlign: 'right', color: corValor || '#111827' }}>
+        {formatarValor(valor)}
+      </span>
+    </div>
+  )
+}
+
 export default function Cozinha() {
   const router = useRouter()
   const [aCarregar, setACarregar] = useState(true)
@@ -138,6 +196,7 @@ export default function Cozinha() {
   const [categoriaEmbalamento, setCategoriaEmbalamento] = useState<string>('')
   const [mostrarPainelExtras, setMostrarPainelExtras] = useState(false)
   const [pesquisaEmbalamento, setPesquisaEmbalamento] = useState('')
+  const [pesquisaConfeccao, setPesquisaConfeccao] = useState('')
 
   const [detalhes, setDetalhes] = useState<DetalheProducao[]>([])
   const [pratosComponentes, setPratosComponentes] = useState<PratoComponente[]>([])
@@ -184,7 +243,7 @@ export default function Cozinha() {
             }))
           } else {
             const chave = `${r.setor}|${r.referencia_id}`
-            setRegistos(prev => ({ ...prev, [chave]: { id: r.id, concluido: r.concluido, quantidade_final: r.quantidade_final, temperatura_confeccao: r.temperatura_confeccao, temperatura_abatimento: r.temperatura_abatimento, extras: r.extras, quantidade_extras: r.quantidade_extras, impressao_etiqueta: r.impressao_etiqueta || false } }))
+            setRegistos(prev => ({ ...prev, [chave]: { id: r.id, concluido: r.concluido, quantidade_final: r.quantidade_final, temperatura_confeccao: r.temperatura_confeccao, temperatura_abatimento: r.temperatura_abatimento, tempo_arrefecimento: r.tempo_arrefecimento, extras: r.extras, quantidade_extras: r.quantidade_extras, impressao_etiqueta: r.impressao_etiqueta || false } }))
           }
         })
       .subscribe()
@@ -240,7 +299,7 @@ export default function Cozinha() {
           try { if (r.quantidade_extras) extrasPorTamanho = JSON.parse(r.quantidade_extras) } catch {}
           mapaEmb[chave] = { id: r.id, concluido: r.concluido, extras: r.extras, extrasPorTamanho, etiquetasImpressas: r.observacoes === 'etiquetas_impressas' }
         } else {
-          mapa[`${r.setor}|${r.referencia_id}`] = { id: r.id, concluido: r.concluido, quantidade_final: r.quantidade_final, temperatura_confeccao: r.temperatura_confeccao, temperatura_abatimento: r.temperatura_abatimento, extras: r.extras, quantidade_extras: r.quantidade_extras, impressao_etiqueta: r.impressao_etiqueta || false }
+          mapa[`${r.setor}|${r.referencia_id}`] = { id: r.id, concluido: r.concluido, quantidade_final: r.quantidade_final, temperatura_confeccao: r.temperatura_confeccao, temperatura_abatimento: r.temperatura_abatimento, tempo_arrefecimento: r.tempo_arrefecimento, extras: r.extras, quantidade_extras: r.quantidade_extras, impressao_etiqueta: r.impressao_etiqueta || false }
         }
       })
       setRegistos(mapa)
@@ -274,7 +333,6 @@ export default function Cozinha() {
     }
   }
 
-  // CORRIGIDO: usa upsert em vez de insert/update separados
   async function guardarRegistoEmbalamento(chaveGrupo: string, referenciaId: number, dados: Partial<RegistoEmbalamento>) {
   if (!producaoAtiva) return
   
@@ -390,7 +448,6 @@ export default function Cozinha() {
 
   const secoesVisiveis: SecaoAtiva[] = seccoes.length > 0 ? (seccoes as SecaoAtiva[]) : ['preparacao', 'confeccao', 'finalizacao', 'embalamento']
   const labelSecao: Record<SecaoAtiva, string> = { preparacao: 'Preparação', confeccao: 'Confeção', finalizacao: 'Finalização', embalamento: 'Embalamento' }
-  const estiloSliderValor = { fontSize: '14px', fontWeight: '500', minWidth: '60px', color: '#111827' }
   const estiloLabel = { fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }
 
   // ── Preparação ───────────────────────────────────────────────
@@ -507,77 +564,168 @@ export default function Cozinha() {
       })
     })
 
+    const todosComponentes = Object.values(componentesMap)
+      .filter(c => c.componenteNome.toLowerCase().includes(pesquisaConfeccao.toLowerCase()))
+      .sort((a, b) => a.componenteNome.localeCompare(b.componenteNome))
+
+    const ativos = todosComponentes.filter(c => {
+      const reg = registos[`confeccao|${c.componenteId}`]
+      return !(reg?.concluido)
+    })
+    const feitos = todosComponentes.filter(c => {
+      const reg = registos[`confeccao|${c.componenteId}`]
+      return reg?.concluido
+    })
+
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
-        {Object.values(componentesMap).map(comp => {
-          const chave = `confeccao|${comp.componenteId}`
-          const reg = registos[chave] || { concluido: false }
-          const feito = reg.concluido || false
-          const tempConf = reg.temperatura_confeccao ?? 75
-          const tempAbat = reg.temperatura_abatimento ?? 6
-          const confOk = tempConf >= 75
-          const abatOk = tempAbat >= 2 && tempAbat <= 6
+      <div>
+        {/* Barra de pesquisa sticky */}
+        <div style={{ position: 'sticky', top: '97px', zIndex: 9, background: '#f9fafb', paddingBottom: '10px', borderBottom: '1px solid #e5e7eb', marginBottom: '14px' }}>
+          <input
+            type="text"
+            placeholder="Pesquisar componente..."
+            value={pesquisaConfeccao}
+            onChange={e => setPesquisaConfeccao(e.target.value)}
+            style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }}
+          />
+        </div>
 
-          if (feito) {
-            return (
-              <PillConcluido
-                key={comp.componenteId}
-                label={comp.componenteNome}
-                onDesfazer={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false })}
-              />
-            )
-          }
+        {/* Layout duas zonas: ativos à esquerda, feitos à direita */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: '20px', alignItems: 'start' }}>
+          {/* Coluna principal: componentes ativos */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {ativos.length === 0 && (
+              <p style={{ fontSize: '14px', color: '#6b7280', textAlign: 'center', padding: '40px 0' }}>
+                {todosComponentes.length === 0 ? 'Nenhum componente encontrado.' : 'Todos os componentes foram concluídos.'}
+              </p>
+            )}
+            {ativos.map(comp => {
+              const chave = `confeccao|${comp.componenteId}`
+              const reg = registos[chave] || { concluido: false }
+              const qtdFinal = reg.quantidade_final ?? 0
+              const tempConf = reg.temperatura_confeccao ?? 75
+              const tempAbat = reg.temperatura_abatimento ?? 6
+              const tempArref = reg.tempo_arrefecimento ?? 60
+              const confOk = tempConf >= 75
+              const abatOk = tempAbat >= 2 && tempAbat <= 6
+              const arrefOk = tempArref >= 20 && tempArref <= 120
+              const podeConcluir = qtdFinal > 0
 
-          return (
-            <div key={comp.componenteId} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <p style={{ fontSize: '16px', fontWeight: '500', color: '#111', margin: '0 0 2px' }}>{comp.componenteNome}</p>
-                <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>{fmtQtd(comp.quantidadeTotal, comp.unidade)}</p>
-              </div>
-              <div>
-                <label style={estiloLabel}>Quantidade final</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <input type="range" min="0" max="100" step="0.5" value={reg.quantidade_final ?? 0}
-                    onChange={e => guardarRegisto('confeccao', comp.componenteId, { quantidade_final: parseFloat(e.target.value) })}
-                    style={{ flex: 1, accentColor: '#111827' }} />
-                  <span style={estiloSliderValor}>{Number(reg.quantidade_final ?? 0).toFixed(1)} kg</span>
+              return (
+                <div key={comp.componenteId} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div>
+                    <p style={{ fontSize: '17px', fontWeight: '500', color: '#111', margin: '0 0 2px' }}>{comp.componenteNome}</p>
+                    <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>{fmtQtd(comp.quantidadeTotal, comp.unidade)}</p>
+                  </div>
+
+                  <div>
+                    <label style={estiloLabel}>Quantidade final</label>
+                    <SliderComBotoes
+                      valor={qtdFinal}
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      onChange={v => guardarRegisto('confeccao', comp.componenteId, { quantidade_final: v })}
+                      formatarValor={v => `${v.toFixed(1)} kg`}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={estiloLabel}>
+                      Temp. confeção — <span style={{ color: confOk ? '#16a34a' : '#dc2626', fontWeight: '500' }}>{confOk ? '✓ OK' : '⚠ Mín. 75°C'}</span>
+                    </label>
+                    <SliderComBotoes
+                      valor={tempConf}
+                      min={-18}
+                      max={100}
+                      step={1}
+                      onChange={v => guardarRegisto('confeccao', comp.componenteId, { temperatura_confeccao: Math.round(v) })}
+                      formatarValor={v => `${Math.round(v)}°C`}
+                      corValor={confOk ? '#16a34a' : '#dc2626'}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={estiloLabel}>
+                      Temp. abatimento — <span style={{ color: abatOk ? '#16a34a' : '#dc2626', fontWeight: '500' }}>{abatOk ? '✓ OK' : '⚠ Entre 2°C e 6°C'}</span>
+                    </label>
+                    <SliderComBotoes
+                      valor={tempAbat}
+                      min={-18}
+                      max={100}
+                      step={1}
+                      onChange={v => guardarRegisto('confeccao', comp.componenteId, { temperatura_abatimento: Math.round(v) })}
+                      formatarValor={v => `${Math.round(v)}°C`}
+                      corValor={abatOk ? '#16a34a' : '#dc2626'}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={estiloLabel}>
+                      Tempo de arrefecimento — <span style={{ color: arrefOk ? '#16a34a' : '#dc2626', fontWeight: '500' }}>{arrefOk ? '✓ OK' : '⚠ Entre 20 min e 2h'}</span>
+                    </label>
+                    <SliderComBotoes
+                      valor={tempArref}
+                      min={0}
+                      max={180}
+                      step={1}
+                      onChange={v => guardarRegisto('confeccao', comp.componenteId, { tempo_arrefecimento: Math.round(v) })}
+                      formatarValor={v => `${Math.round(v)} min`}
+                      corValor={arrefOk ? '#16a34a' : '#dc2626'}
+                    />
+                  </div>
+
+                  <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: '10px' }}>
+                    <p style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Tarefas</p>
+                    {comp.tarefas.sort((a, b) => a.ordem - b.ordem).map(t => (
+                      <p key={t.id} style={{ fontSize: '13px', color: '#374151', margin: '0 0 3px' }}>{t.ordem}. {t.tarefa}{t.observacoes ? ` — ${t.observacoes}` : ''}</p>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => podeConcluir && guardarRegisto('confeccao', comp.componenteId, { concluido: true })}
+                    disabled={!podeConcluir}
+                    title={podeConcluir ? '' : 'Define a quantidade final antes de concluir'}
+                    style={{
+                      width: '100%',
+                      padding: '13px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: podeConcluir ? '#80c944' : '#e5e7eb',
+                      color: podeConcluir ? '#fff' : '#9ca3af',
+                      fontSize: '15px',
+                      fontWeight: '500',
+                      cursor: podeConcluir ? 'pointer' : 'not-allowed'
+                    }}>
+                    {podeConcluir ? 'Feito ✓' : 'Define a quantidade final'}
+                  </button>
                 </div>
-              </div>
-              <div>
-                <label style={estiloLabel}>
-                  Temp. confeção — <span style={{ color: confOk ? '#16a34a' : '#dc2626', fontWeight: '500' }}>{confOk ? '✓ OK' : '⚠ Mín. 75°C'}</span>
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <input type="range" min="-18" max="100" step="1" value={tempConf}
-                    onChange={e => guardarRegisto('confeccao', comp.componenteId, { temperatura_confeccao: parseInt(e.target.value) })}
-                    style={{ flex: 1, accentColor: '#111827' }} />
-                  <span style={{ ...estiloSliderValor, color: confOk ? '#16a34a' : '#dc2626' }}>{tempConf}°C</span>
-                </div>
-              </div>
-              <div>
-                <label style={estiloLabel}>
-                  Temp. abatimento — <span style={{ color: abatOk ? '#16a34a' : '#dc2626', fontWeight: '500' }}>{abatOk ? '✓ OK' : '⚠ Entre 2°C e 6°C'}</span>
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <input type="range" min="-18" max="100" step="1" value={tempAbat}
-                    onChange={e => guardarRegisto('confeccao', comp.componenteId, { temperatura_abatimento: parseInt(e.target.value) })}
-                    style={{ flex: 1, accentColor: '#111827' }} />
-                  <span style={{ ...estiloSliderValor, color: abatOk ? '#16a34a' : '#dc2626' }}>{tempAbat}°C</span>
-                </div>
-              </div>
-              <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: '10px' }}>
-                <p style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Tarefas</p>
-                {comp.tarefas.sort((a, b) => a.ordem - b.ordem).map(t => (
-                  <p key={t.id} style={{ fontSize: '13px', color: '#374151', margin: '0 0 3px' }}>{t.ordem}. {t.tarefa}{t.observacoes ? ` — ${t.observacoes}` : ''}</p>
-                ))}
-              </div>
-              <button onClick={() => guardarRegisto('confeccao', comp.componenteId, { concluido: true })}
-                style={{ width: '100%', padding: '13px', borderRadius: '8px', border: 'none', background: '#80c944', color: '#fff', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>
-                Feito ✓
-              </button>
-            </div>
-          )
-        })}
+              )
+            })}
+          </div>
+
+          {/* Coluna lateral: componentes feitos como pills */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {feitos.length > 0 && (
+              <p style={{ fontSize: '11px', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 4px' }}>
+                Concluídos ({feitos.length})
+              </p>
+            )}
+            {feitos.map(comp => {
+              const chave = `confeccao|${comp.componenteId}`
+              const reg = registos[chave]
+              const qtdFinal = reg?.quantidade_final ?? 0
+              const label = `${comp.componenteNome} · ${qtdFinal.toFixed(1)} kg`
+              return (
+                <PillConcluido
+                  key={comp.componenteId}
+                  label={label}
+                  onDesfazer={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false })}
+                />
+              )
+            })}
+          </div>
+        </div>
       </div>
     )
   }
@@ -671,7 +819,6 @@ export default function Cozinha() {
 
     const todosExtras: { pratoNome: string; categoria: string | null; itens: { tamanho: string; sku: string; quantidade: number }[]; etiquetasImpressas: boolean; chaveGrupo: string; referenciaId: number }[] = []
     Object.values(gruposNome).forEach(grupo => {
-      // CORRIGIDO: usa sempre o menor id para garantir consistência entre dispositivos
       const referenciaId = Math.min(...grupo.itens.map(i => i.id))
       const chaveGrupo = `emb|${referenciaId}`
       const reg = registosEmbalamento[chaveGrupo]
@@ -750,7 +897,6 @@ export default function Cozinha() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {gruposDaCat.map(grupo => {
-            // CORRIGIDO: usa sempre o menor id para garantir consistência entre dispositivos
             const referenciaId = Math.min(...grupo.itens.map(i => i.id))
             const chaveGrupo = `emb|${referenciaId}`
             const reg = registosEmbalamento[chaveGrupo] || { concluido: false, extras: null, extrasPorTamanho: {}, etiquetasImpressas: false }
@@ -819,7 +965,7 @@ export default function Cozinha() {
                                   guardarRegistoEmbalamento(chaveGrupo, referenciaId, { extrasPorTamanho: novosExtras })
                                 }}
                                 style={{ flex: 1, accentColor: '#111827' }} />
-                              <span style={estiloSliderValor}>{qtdExtra}</span>
+                              <span style={{ fontSize: '14px', fontWeight: '500', minWidth: '60px', color: '#111827' }}>{qtdExtra}</span>
                             </div>
                           </div>
                         )
