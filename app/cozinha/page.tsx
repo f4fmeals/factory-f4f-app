@@ -179,7 +179,7 @@ function SliderComBotoes({
         onChange={e => onChange(parseFloat(e.target.value))}
         style={{ flex: 1, accentColor: '#111827' }} />
       <button type="button" onClick={incrementar} style={estiloBotao}>+</button>
-      <span style={{ fontSize: '14px', fontWeight: '500', minWidth: '70px', textAlign: 'right', color: corValor || '#111827' }}>
+      <span style={{ fontSize: '17px', fontWeight: '700', minWidth: '80px', textAlign: 'right', color: corValor || '#111827' }}>
         {formatarValor(valor)}
       </span>
     </div>
@@ -661,9 +661,9 @@ export default function Cozinha() {
                       valor={tempConf}
                       min={-18}
                       max={100}
-                      step={1}
-                      onChange={v => guardarRegisto('confeccao', comp.componenteId, { temperatura_confeccao: Math.round(v) })}
-                      formatarValor={v => `${Math.round(v)}°C`}
+                      step={0.1}
+                      onChange={v => guardarRegisto('confeccao', comp.componenteId, { temperatura_confeccao: Number(v.toFixed(1)) })}
+                      formatarValor={v => `${v.toFixed(1)}°C`}
                       corValor={confOk ? '#16a34a' : '#dc2626'}
                     />
                   </div>
@@ -676,9 +676,9 @@ export default function Cozinha() {
                       valor={tempAbat}
                       min={-18}
                       max={100}
-                      step={1}
-                      onChange={v => guardarRegisto('confeccao', comp.componenteId, { temperatura_abatimento: Math.round(v) })}
-                      formatarValor={v => `${Math.round(v)}°C`}
+                      step={0.1}
+                      onChange={v => guardarRegisto('confeccao', comp.componenteId, { temperatura_abatimento: Number(v.toFixed(1)) })}
+                      formatarValor={v => `${v.toFixed(1)}°C`}
                       corValor={abatOk ? '#16a34a' : '#dc2626'}
                     />
                   </div>
