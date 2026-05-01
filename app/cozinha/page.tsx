@@ -422,7 +422,7 @@ export default function Cozinha() {
     if (data) setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: { ...novoEstado, id: data.id } as RegistoEmbalamento }))
   }
 
-  const PRINTER_URL = 'https://sorted-merger-advocate-moses.trycloudflare.com/print'
+  const PRINTER_URL = 'https://nam-maritime-bless-removable.trycloudflare.com/print'
 
   function gerarZPL(dados: {
     componenteDestino: string
