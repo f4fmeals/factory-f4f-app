@@ -422,7 +422,7 @@ export default function Cozinha() {
     if (data) setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: { ...novoEstado, id: data.id } as RegistoEmbalamento }))
   }
 
-  const PRINTER_URL = 'http://192.168.68.111:9100'
+  const PRINTER_URL = 'https://sorted-merger-advocate-moses.trycloudflare.com/print'
 
   function gerarZPL(dados: {
     componenteDestino: string
@@ -453,29 +453,36 @@ export default function Cozinha() {
   }
 
   async function imprimirEtiqueta(
-    dados: {
-      componenteDestino: string
-      pratoDestino: string
-      ingrediente: string
-      quantidade: string
-      data: string
-    },
-    onImprimiu: () => void
-  ) {
-    const zpl = gerarZPL(dados)
-    try {
-      await fetch(PRINTER_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: zpl,
-        mode: 'no-cors',
-      })
-      onImprimiu()
-    } catch (erro) {
-      console.error('Erro de impressão:', erro)
-      alert('Não consegui falar com a impressora.\n\nVerifica:\n• Tablet na mesma Wi-Fi da impressora\n• Impressora ligada\n• "Conteúdo não seguro" permitido no Chrome')
+  dados: {
+    componenteDestino: string
+    pratoDestino: string
+    ingrediente: string
+    quantidade: string
+    data: string
+  },
+  onImprimiu: () => void
+) {
+  const zpl = gerarZPL(dados)
+
+  try {
+    const resposta = await fetch(PRINTER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ zpl }),
+    })
+
+    if (!resposta.ok) {
+      throw new Error('Erro ao enviar etiqueta')
     }
+
+    onImprimiu()
+  } catch (erro) {
+    console.error('Erro de impressão:', erro)
+    alert('Não consegui imprimir.\n\nVerifica:\n• PC ligado\n• servidor ativo\n• tablet na mesma rede')
   }
+}
 
   function parseNum(v: any) {
     const n = parseFloat(String(v || '').replace(',', '.'))
