@@ -1,7 +1,7 @@
 // @ts-nocheck
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
@@ -114,6 +114,17 @@ function coresCategoria(cat: string | null | undefined) {
   return CORES_CATEGORIA[cat] || { bg: '#f3f4f6', texto: '#111827', borda: '#d1d5db' }
 }
 
+// ── Helpers de unidade para o slider de quantidade final ─────
+function configSliderUnidade(unidade: string | null | undefined) {
+  const u = (unidade || 'kg').toLowerCase()
+  if (u === 'g') return { unidade: 'g', min: 0, max: 50000, step: 50, formatar: (v: number) => `${Math.round(v)} g` }
+  if (u === 'ml') return { unidade: 'ml', min: 0, max: 50000, step: 50, formatar: (v: number) => `${Math.round(v)} ml` }
+  if (u === 'l') return { unidade: 'l', min: 0, max: 200, step: 0.5, formatar: (v: number) => `${v.toFixed(1)} l` }
+  if (u === 'un' || u === 'unidades' || u === 'unidade') return { unidade: 'un', min: 0, max: 500, step: 1, formatar: (v: number) => `${Math.round(v)} un` }
+  // default: kg
+  return { unidade: 'kg', min: 0, max: 100, step: 0.5, formatar: (v: number) => `${v.toFixed(1)} kg` }
+}
+
 function PillConcluido({ label, onDesfazer }: { label: string; onDesfazer: () => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '99px', padding: '6px 12px', gap: '8px' }}>
@@ -179,7 +190,7 @@ function SliderComBotoes({
         onChange={e => onChange(parseFloat(e.target.value))}
         style={{ flex: 1, accentColor: '#111827' }} />
       <button type="button" onClick={incrementar} style={estiloBotao}>+</button>
-      <span style={{ fontSize: '17px', fontWeight: '700', minWidth: '80px', textAlign: 'right', color: corValor || '#111827' }}>
+      <span style={{ fontSize: '17px', fontWeight: '700', minWidth: '90px', textAlign: 'right', color: corValor || '#111827' }}>
         {formatarValor(valor)}
       </span>
     </div>
@@ -209,6 +220,9 @@ export default function Cozinha() {
   const [registos, setRegistos] = useState<Record<string, Registo>>({})
   const [registosEmbalamento, setRegistosEmbalamento] = useState<Record<string, RegistoEmbalamento>>({})
 
+  // Ref para evitar fetches sobrepostos quando o tablet volta a ficar visível
+  const aRefazerFetch = useRef(false)
+
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -227,30 +241,84 @@ export default function Cozinha() {
     init()
   }, [])
 
+  // Subscription Realtime + re-fetch silencioso quando o tablet volta a ficar visível
   useEffect(() => {
     if (!producaoAtiva) return
-    const channel = supabase.channel(`registos_cozinha_${producaoAtiva.id}_${Date.now()}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'registos_producao' },
-        (payload) => {
-          const r = payload.new as any
-          if (r.producao_semanal_id !== producaoAtiva.id) return
 
-          if (r.setor === 'embalamento_grupo') {
-            const chave = `emb|${r.referencia_id}`
-            let extrasPorTamanho: Record<number, number> = {}
-            try { if (r.quantidade_extras) extrasPorTamanho = JSON.parse(r.quantidade_extras) } catch {}
-            setRegistosEmbalamento(prev => ({
-              ...prev,
-              [chave]: { id: r.id, concluido: r.concluido, extras: r.extras, extrasPorTamanho, etiquetasImpressas: r.observacoes === 'etiquetas_impressas' }
-            }))
-          } else {
-            const chave = `${r.setor}|${r.referencia_id}`
-            setRegistos(prev => ({ ...prev, [chave]: { id: r.id, concluido: r.concluido, quantidade_final: r.quantidade_final, temperatura_confeccao: r.temperatura_confeccao, temperatura_abatimento: r.temperatura_abatimento, tempo_arrefecimento: r.tempo_arrefecimento, extras: r.extras, quantidade_extras: r.quantidade_extras, impressao_etiqueta: r.impressao_etiqueta || false } }))
+    const aplicarRegisto = (r: any) => {
+      if (!r || r.producao_semanal_id !== producaoAtiva.id) return
+      if (r.setor === 'embalamento_grupo') {
+        const chave = `emb|${r.referencia_id}`
+        let extrasPorTamanho: Record<number, number> = {}
+        try { if (r.quantidade_extras) extrasPorTamanho = JSON.parse(r.quantidade_extras) } catch {}
+        setRegistosEmbalamento(prev => ({
+          ...prev,
+          [chave]: { id: r.id, concluido: r.concluido, extras: r.extras, extrasPorTamanho, etiquetasImpressas: r.observacoes === 'etiquetas_impressas' }
+        }))
+      } else {
+        const chave = `${r.setor}|${r.referencia_id}`
+        setRegistos(prev => ({
+          ...prev,
+          [chave]: {
+            id: r.id,
+            concluido: r.concluido,
+            quantidade_final: r.quantidade_final,
+            temperatura_confeccao: r.temperatura_confeccao,
+            temperatura_abatimento: r.temperatura_abatimento,
+            tempo_arrefecimento: r.tempo_arrefecimento,
+            extras: r.extras,
+            quantidade_extras: r.quantidade_extras,
+            impressao_etiqueta: r.impressao_etiqueta || false
           }
-        })
+        }))
+      }
+    }
+
+    // Canal estável (sem Date.now() — antes era recriado a cada render e podia perder eventos)
+    const channel = supabase.channel(`registos_cozinha_${producaoAtiva.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'registos_producao' },
+        (payload) => aplicarRegisto(payload.new))
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+
+    // Re-fetch quando o tablet volta a ficar visível (acordou do sleep, voltou ao separador, etc.)
+    const aoFicarVisivel = async () => {
+      if (document.visibilityState !== 'visible') return
+      if (aRefazerFetch.current) return
+      aRefazerFetch.current = true
+      try {
+        await carregarRegistos(producaoAtiva.id)
+      } finally {
+        aRefazerFetch.current = false
+      }
+    }
+    document.addEventListener('visibilitychange', aoFicarVisivel)
+    window.addEventListener('focus', aoFicarVisivel)
+
+    return () => {
+      supabase.removeChannel(channel)
+      document.removeEventListener('visibilitychange', aoFicarVisivel)
+      window.removeEventListener('focus', aoFicarVisivel)
+    }
   }, [producaoAtiva])
+
+  async function carregarRegistos(producaoId: number) {
+    const { data: reg } = await supabase.from('registos_producao').select('*').eq('producao_semanal_id', producaoId)
+    if (!reg) return
+    const mapa: Record<string, Registo> = {}
+    const mapaEmb: Record<string, RegistoEmbalamento> = {}
+    reg.forEach((r: any) => {
+      if (r.setor === 'embalamento_grupo') {
+        const chave = `emb|${r.referencia_id}`
+        let extrasPorTamanho: Record<number, number> = {}
+        try { if (r.quantidade_extras) extrasPorTamanho = JSON.parse(r.quantidade_extras) } catch {}
+        mapaEmb[chave] = { id: r.id, concluido: r.concluido, extras: r.extras, extrasPorTamanho, etiquetasImpressas: r.observacoes === 'etiquetas_impressas' }
+      } else {
+        mapa[`${r.setor}|${r.referencia_id}`] = { id: r.id, concluido: r.concluido, quantidade_final: r.quantidade_final, temperatura_confeccao: r.temperatura_confeccao, temperatura_abatimento: r.temperatura_abatimento, tempo_arrefecimento: r.tempo_arrefecimento, extras: r.extras, quantidade_extras: r.quantidade_extras, impressao_etiqueta: r.impressao_etiqueta || false }
+      }
+    })
+    setRegistos(mapa)
+    setRegistosEmbalamento(mapaEmb)
+  }
 
   async function carregarDados(producaoId: number) {
     const { data: det } = await supabase.from('producoes_semanais_itens')
@@ -290,26 +358,9 @@ export default function Cozinha() {
       .in('componente_id', compIds.length ? compIds : [-1]).order('ordem', { ascending: true })
     setTarefasFinalizacao((tf || []) as TarefaFinalizacao[])
 
-    const { data: reg } = await supabase.from('registos_producao').select('*').eq('producao_semanal_id', producaoId)
-    if (reg) {
-      const mapa: Record<string, Registo> = {}
-      const mapaEmb: Record<string, RegistoEmbalamento> = {}
-      reg.forEach((r: any) => {
-        if (r.setor === 'embalamento_grupo') {
-          const chave = `emb|${r.referencia_id}`
-          let extrasPorTamanho: Record<number, number> = {}
-          try { if (r.quantidade_extras) extrasPorTamanho = JSON.parse(r.quantidade_extras) } catch {}
-          mapaEmb[chave] = { id: r.id, concluido: r.concluido, extras: r.extras, extrasPorTamanho, etiquetasImpressas: r.observacoes === 'etiquetas_impressas' }
-        } else {
-          mapa[`${r.setor}|${r.referencia_id}`] = { id: r.id, concluido: r.concluido, quantidade_final: r.quantidade_final, temperatura_confeccao: r.temperatura_confeccao, temperatura_abatimento: r.temperatura_abatimento, tempo_arrefecimento: r.tempo_arrefecimento, extras: r.extras, quantidade_extras: r.quantidade_extras, impressao_etiqueta: r.impressao_etiqueta || false }
-        }
-      })
-      setRegistos(mapa)
-      setRegistosEmbalamento(mapaEmb)
-    }
+    await carregarRegistos(producaoId)
   }
 
-  // CORRIGIDO: usa upsert em vez de insert/update separados
   async function guardarRegisto(setor: string, referenciaId: number, dados: Partial<Registo>) {
     if (!producaoAtiva) return
     const chave = `${setor}|${referenciaId}`
@@ -336,128 +387,94 @@ export default function Cozinha() {
   }
 
   async function guardarRegistoEmbalamento(chaveGrupo: string, referenciaId: number, dados: Partial<RegistoEmbalamento>) {
-  if (!producaoAtiva) return
-  
-  const estadoAtual = registosEmbalamento[chaveGrupo] || { concluido: false, extras: null, extrasPorTamanho: {}, etiquetasImpressas: false }
-  const novoEstado = { ...estadoAtual, ...dados }
-  setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: novoEstado as RegistoEmbalamento }))
+    if (!producaoAtiva) return
 
-  let quantidadeExtrasDB: string | null = null
-  if (novoEstado.extras === true && novoEstado.extrasPorTamanho) {
-    const entries = Object.entries(novoEstado.extrasPorTamanho)
-    if (entries.length > 0) {
-      quantidadeExtrasDB = JSON.stringify(novoEstado.extrasPorTamanho)
+    const estadoAtual = registosEmbalamento[chaveGrupo] || { concluido: false, extras: null, extrasPorTamanho: {}, etiquetasImpressas: false }
+    const novoEstado = { ...estadoAtual, ...dados }
+    setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: novoEstado as RegistoEmbalamento }))
+
+    let quantidadeExtrasDB: string | null = null
+    if (novoEstado.extras === true && novoEstado.extrasPorTamanho) {
+      const entries = Object.entries(novoEstado.extrasPorTamanho)
+      if (entries.length > 0) {
+        quantidadeExtrasDB = JSON.stringify(novoEstado.extrasPorTamanho)
+      }
     }
-  }
 
-  const dadosDB = {
-    producao_semanal_id: producaoAtiva.id,
-    setor: 'embalamento_grupo',
-    referencia_id: referenciaId,
-    concluido: novoEstado.concluido ?? false,
-    extras: novoEstado.extras ?? null,
-    quantidade_extras: quantidadeExtrasDB,
-    observacoes: novoEstado.etiquetasImpressas ? 'etiquetas_impressas' : null,
-    atualizado_em: new Date().toISOString(),
-  }
+    const dadosDB = {
+      producao_semanal_id: producaoAtiva.id,
+      setor: 'embalamento_grupo',
+      referencia_id: referenciaId,
+      concluido: novoEstado.concluido ?? false,
+      extras: novoEstado.extras ?? null,
+      quantidade_extras: quantidadeExtrasDB,
+      observacoes: novoEstado.etiquetasImpressas ? 'etiquetas_impressas' : null,
+      atualizado_em: new Date().toISOString(),
+    }
 
-  const existenteId = estadoAtual.id
-  if (existenteId) {
+    // Usar upsert para evitar race conditions entre tablets
     const { data } = await supabase
       .from('registos_producao')
-      .update(dadosDB)
-      .eq('id', existenteId)
+      .upsert(dadosDB, { onConflict: 'producao_semanal_id,setor,referencia_id' })
       .select()
       .single()
-    if (data) setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: { ...novoEstado, id: data.id } as RegistoEmbalamento }))
-  } else {
-    const { data } = await supabase
-      .from('registos_producao')
-      .insert(dadosDB)
-      .select()
-      .single()
+
     if (data) setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: { ...novoEstado, id: data.id } as RegistoEmbalamento }))
   }
-}
 
-  function imprimirEtiqueta(dados: { componenteDestino: string; pratoDestino: string; ingrediente: string; quantidade: string; data: string }, onImprimiu: () => void) {
-    const conteudo = `
-      <html>
-      <head>
-        <title>Etiqueta</title>
-        <style>
-          @page { 
-            size: 76mm 51mm; 
-            margin: 0; 
-          }
-          html, body { 
-            width: 76mm; 
-            height: 51mm; 
-            margin: 0; 
-            padding: 0;
-          }
-          body {
-            font-family: Arial, sans-serif;
-            padding: 3mm 4mm;
-            box-sizing: border-box;
-            font-size: 10px;
-            color: #000;
-          }
-          .componente { 
-            font-size: 15px; 
-            font-weight: bold; 
-            margin-bottom: 3px;
-            line-height: 1.1;
-          }
-          .prato {
-            font-size: 11px;
-            color: #333;
-            margin-bottom: 4px;
-            line-height: 1.1;
-          }
-          hr { 
-            border: none; 
-            border-top: 0.5px solid #999; 
-            margin: 3px 0; 
-          }
-          .linha { 
-            display: flex; 
-            justify-content: space-between; 
-            margin-bottom: 2px;
-            font-size: 11px;
-          }
-          .label { color: #555; }
-          .valor { font-weight: bold; }
-          .data { 
-            font-size: 9px; 
-            color: #666; 
-            margin-top: 4px; 
-            text-align: right; 
-          }
-        </style>
-      </head>
-      <body>
-        <div class="componente">${dados.componenteDestino}</div>
-        <div class="prato">→ ${dados.pratoDestino}</div>
-        <hr/>
-        <div class="linha"><span class="label">Ingrediente</span><span class="valor">${dados.ingrediente}</span></div>
-        <div class="linha"><span class="label">Quantidade</span><span class="valor">${dados.quantidade}</span></div>
-        <div class="data">${dados.data}</div>
-      </body>
-      </html>
-    `
-    const janela = window.open('', '_blank', 'width=400,height=300')
-    if (!janela) return
-    janela.document.write(conteudo)
-    janela.document.close()
-    janela.focus()
-    setTimeout(() => {
-      janela.print()
-      setTimeout(() => {
-        janela.close()
-        onImprimiu()
-      }, 500)
-    }, 250)
+  const PRINTER_URL = 'http://192.168.68.111:9100'
+
+  function gerarZPL(dados: {
+    componenteDestino: string
+    pratoDestino: string
+    ingrediente: string
+    quantidade: string
+    data: string
+  }) {
+    const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
+    return `^XA
+^PW609
+^LL406
+^CI28
+^LH0,0
+^CF0,38
+^FO20,20^FB570,2,4,L^FD${esc(dados.componenteDestino)}^FS
+^CF0,22
+^FO20,120^FB570,1,0,L^FD-> ${esc(dados.pratoDestino)}^FS
+^FO20,165^GB570,2,2^FS
+^CF0,24
+^FO20,185^FDIngrediente:^FS
+^FO230,185^FB360,1,0,L^FD${esc(dados.ingrediente)}^FS
+^FO20,225^FDQuantidade:^FS
+^FO230,225^FB360,1,0,L^FD${esc(dados.quantidade)}^FS
+^CF0,18
+^FO20,370^FD${esc(dados.data)}^FS
+^XZ`
+  }
+
+  async function imprimirEtiqueta(
+    dados: {
+      componenteDestino: string
+      pratoDestino: string
+      ingrediente: string
+      quantidade: string
+      data: string
+    },
+    onImprimiu: () => void
+  ) {
+    const zpl = gerarZPL(dados)
+    try {
+      await fetch(PRINTER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: zpl,
+        mode: 'no-cors',
+      })
+      onImprimiu()
+    } catch (erro) {
+      console.error('Erro de impressão:', erro)
+      alert('Não consegui falar com a impressora.\n\nVerifica:\n• Tablet na mesma Wi-Fi da impressora\n• Impressora ligada\n• "Conteúdo não seguro" permitido no Chrome')
+    }
   }
 
   function parseNum(v: any) {
@@ -614,7 +631,7 @@ export default function Cozinha() {
 
   // ── Confeção ─────────────────────────────────────────────────
   function renderConfeccao() {
-    const componentesMap: Record<string, { componenteId: number; componenteNome: string; quantidadeTotal: number; unidade: string | null; tarefas: TarefaConfeccao[] }> = {}
+    const componentesMap: Record<string, { componenteId: number; componenteNome: string; quantidadeTotal: number; unidade: string | null; unidadeRendimento: string | null; tarefas: TarefaConfeccao[] }> = {}
     detalhes.forEach(item => {
       const pratoId = Number(item.pratos?.id)
       const doses = Number(item.quantidade || 0)
@@ -625,7 +642,7 @@ export default function Cozinha() {
         const tarefasC = tarefasConfeccao.filter(t => Number(t.componente_id) === cId)
         if (!tarefasC.length) return
         const chave = String(cId)
-        if (!componentesMap[chave]) componentesMap[chave] = { componenteId: cId, componenteNome: cNome, quantidadeTotal: 0, unidade: pc.unidade, tarefas: tarefasC }
+        if (!componentesMap[chave]) componentesMap[chave] = { componenteId: cId, componenteNome: cNome, quantidadeTotal: 0, unidade: pc.unidade, unidadeRendimento: pc.componentes?.unidade_rendimento || null, tarefas: tarefasC }
         componentesMap[chave].quantidadeTotal += qtd
       })
     })
@@ -668,6 +685,7 @@ export default function Cozinha() {
             {ativos.map(comp => {
               const chave = `confeccao|${comp.componenteId}`
               const reg = registos[chave] || { concluido: false }
+              const cfgSlider = configSliderUnidade(comp.unidadeRendimento)
               const qtdFinal = reg.quantidade_final ?? 0
               const tempConf = reg.temperatura_confeccao ?? 75
               const tempAbat = reg.temperatura_abatimento ?? 6
@@ -685,14 +703,14 @@ export default function Cozinha() {
                   </div>
 
                   <div>
-                    <label style={estiloLabel}>Quantidade final</label>
+                    <label style={estiloLabel}>Quantidade final ({cfgSlider.unidade})</label>
                     <SliderComBotoes
                       valor={qtdFinal}
-                      min={0}
-                      max={100}
-                      step={0.5}
+                      min={cfgSlider.min}
+                      max={cfgSlider.max}
+                      step={cfgSlider.step}
                       onChange={v => guardarRegisto('confeccao', comp.componenteId, { quantidade_final: v })}
-                      formatarValor={v => `${v.toFixed(1)} kg`}
+                      formatarValor={cfgSlider.formatar}
                     />
                   </div>
 
@@ -780,8 +798,9 @@ export default function Cozinha() {
             {feitos.map(comp => {
               const chave = `confeccao|${comp.componenteId}`
               const reg = registos[chave]
+              const cfgSlider = configSliderUnidade(comp.unidadeRendimento)
               const qtdFinal = reg?.quantidade_final ?? 0
-              const label = `${comp.componenteNome} · ${qtdFinal.toFixed(1)} kg`
+              const label = `${comp.componenteNome} · ${cfgSlider.formatar(qtdFinal)}`
               return (
                 <PillConcluido
                   key={comp.componenteId}
@@ -892,6 +911,16 @@ export default function Cozinha() {
       g.itens.sort((a, b) => ordemTamanho(a.pratos?.tamanho || '') - ordemTamanho(b.pratos?.tamanho || ''))
     })
 
+    // ⚠ MUDANÇA IMPORTANTE: referencia_id passa a ser o prato_id do tamanho mais pequeno
+    // do grupo (NÃO o producoes_semanais_itens.id, que muda quando o gestor reordena).
+    // Isto torna o registo estável: reordenar cartões já não apaga nada.
+    function refIdGrupo(itens: DetalheProducao[]): number {
+      const ordenados = [...itens].sort((a, b) =>
+        ordemTamanho(a.pratos?.tamanho || '') - ordemTamanho(b.pratos?.tamanho || '')
+      )
+      return Number(ordenados[0]?.pratos?.id) || 0
+    }
+
     const porCategoria: Record<string, typeof gruposNome[string][]> = {}
     Object.values(gruposNome).forEach(grupo => {
       const cat = grupo.categoria || 'Outros'
@@ -902,16 +931,27 @@ export default function Cozinha() {
     const categorias = ORDEM_CATEGORIAS.filter(c => porCategoria[c]).concat(Object.keys(porCategoria).filter(c => !ORDEM_CATEGORIAS.includes(c)).sort())
     const catAtiva = categoriaEmbalamento || categorias[0] || ''
     const gruposDaCat = (porCategoria[catAtiva] || [])
-  .filter(g => g.pratoNome.toLowerCase().includes(pesquisaEmbalamento.toLowerCase()))
-  .sort((a, b) => (a.prioridade ?? 999) - (b.prioridade ?? 999) || a.pratoNome.localeCompare(b.pratoNome))
+      .filter(g => g.pratoNome.toLowerCase().includes(pesquisaEmbalamento.toLowerCase()))
+      .sort((a, b) => (a.prioridade ?? 999) - (b.prioridade ?? 999) || a.pratoNome.localeCompare(b.pratoNome))
 
     const todosExtras: { pratoNome: string; categoria: string | null; itens: { tamanho: string; sku: string; quantidade: number }[]; etiquetasImpressas: boolean; chaveGrupo: string; referenciaId: number }[] = []
     Object.values(gruposNome).forEach(grupo => {
-      const referenciaId = Math.min(...grupo.itens.map(i => i.id))
+      const referenciaId = refIdGrupo(grupo.itens)
       const chaveGrupo = `emb|${referenciaId}`
       const reg = registosEmbalamento[chaveGrupo]
       if (reg?.extras === true) {
-        todosExtras.push({ pratoNome: grupo.pratoNome, categoria: grupo.categoria, itens: grupo.itens.map(i => ({ tamanho: i.pratos?.tamanho?.toUpperCase() || '-', sku: i.pratos?.sku || '-', quantidade: reg.extrasPorTamanho?.[i.id] ?? 0 })), etiquetasImpressas: reg.etiquetasImpressas || false, chaveGrupo, referenciaId })
+        todosExtras.push({
+          pratoNome: grupo.pratoNome,
+          categoria: grupo.categoria,
+          itens: grupo.itens.map(i => ({
+            tamanho: i.pratos?.tamanho?.toUpperCase() || '-',
+            sku: i.pratos?.sku || '-',
+            quantidade: reg.extrasPorTamanho?.[Number(i.pratos?.id)] ?? 0
+          })),
+          etiquetasImpressas: reg.etiquetasImpressas || false,
+          chaveGrupo,
+          referenciaId
+        })
       }
     })
 
@@ -963,12 +1003,12 @@ export default function Cozinha() {
 
         <div style={{ position: 'sticky', top: '97px', zIndex: 9, background: '#f9fafb', paddingBottom: '10px', borderBottom: '1px solid #e5e7eb', marginBottom: '14px' }}>
           <input
-  type="text"
-  placeholder="Pesquisar prato..."
-  value={pesquisaEmbalamento}
-  onChange={e => setPesquisaEmbalamento(e.target.value)}
-  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '10px', outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }}
-/>
+            type="text"
+            placeholder="Pesquisar prato..."
+            value={pesquisaEmbalamento}
+            onChange={e => setPesquisaEmbalamento(e.target.value)}
+            style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '10px', outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }}
+          />
           <div style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
             {categorias.map(cat => {
               const cores = coresCategoria(cat)
@@ -985,7 +1025,7 @@ export default function Cozinha() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {gruposDaCat.map(grupo => {
-            const referenciaId = Math.min(...grupo.itens.map(i => i.id))
+            const referenciaId = refIdGrupo(grupo.itens)
             const chaveGrupo = `emb|${referenciaId}`
             const reg = registosEmbalamento[chaveGrupo] || { concluido: false, extras: null, extrasPorTamanho: {}, etiquetasImpressas: false }
             const feito = reg.concluido || false
@@ -998,7 +1038,7 @@ export default function Cozinha() {
               return (
                 <PillConcluido
                   key={grupo.pratoNome}
-                  label={`${grupo.pratoNome}${reg.extras === true ? ` · Extras: ${grupo.itens.map(i => `${i.pratos?.tamanho?.toUpperCase()} ${reg.extrasPorTamanho?.[i.id] ?? 0}`).join(' ')}` : ' · Sem extras'}`}
+                  label={`${grupo.pratoNome}${reg.extras === true ? ` · Extras: ${grupo.itens.map(i => `${i.pratos?.tamanho?.toUpperCase()} ${reg.extrasPorTamanho?.[Number(i.pratos?.id)] ?? 0}`).join(' ')}` : ' · Sem extras'}`}
                   onDesfazer={() => guardarRegistoEmbalamento(chaveGrupo, referenciaId, { concluido: false })}
                 />
               )
@@ -1042,14 +1082,15 @@ export default function Cozinha() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
                       {grupo.itens.map(item => {
                         const tamLabel = item.pratos?.tamanho?.toUpperCase() || '-'
-                        const qtdExtra = reg.extrasPorTamanho?.[item.id] ?? 0
+                        const pratoIdItem = Number(item.pratos?.id)
+                        const qtdExtra = reg.extrasPorTamanho?.[pratoIdItem] ?? 0
                         return (
                           <div key={item.id}>
                             <label style={estiloLabel}>Extras {tamLabel} · {item.pratos?.sku}</label>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                               <input type="range" min="0" max="50" step="1" value={qtdExtra}
                                 onChange={e => {
-                                  const novosExtras = { ...(reg.extrasPorTamanho || {}), [item.id]: parseInt(e.target.value) }
+                                  const novosExtras = { ...(reg.extrasPorTamanho || {}), [pratoIdItem]: parseInt(e.target.value) }
                                   guardarRegistoEmbalamento(chaveGrupo, referenciaId, { extrasPorTamanho: novosExtras })
                                 }}
                                 style={{ flex: 1, accentColor: '#111827' }} />

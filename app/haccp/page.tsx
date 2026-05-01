@@ -72,6 +72,14 @@ type RegistoLimpezaTarefa = {
   concluida: boolean
 }
 
+type Staff = {
+  id: number
+  instalacao_id: number
+  nome: string
+  ativo: boolean
+  ordem: number
+}
+
 const CHAVE_INSTALACAO = 'haccp_instalacao_id'
 
 export default function HaccpHome() {
@@ -91,6 +99,14 @@ export default function HaccpHome() {
   const [formInstNome, setFormInstNome] = useState('')
   const [formInstMorada, setFormInstMorada] = useState('')
   const [aGuardarInst, setAGuardarInst] = useState(false)
+
+  // Staff
+  const [staff, setStaff] = useState<Staff[]>([])
+  const [aCarregarStaff, setACarregarStaff] = useState(false)
+  const [novoStaffAberto, setNovoStaffAberto] = useState(false)
+  const [staffEmEdicao, setStaffEmEdicao] = useState<Staff | null>(null)
+  const [formStaffNome, setFormStaffNome] = useState('')
+  const [aGuardarStaff, setAGuardarStaff] = useState(false)
 
   // Abas
   const [abaAtiva, setAbaAtiva] = useState<AbaHaccp>('temperaturas')
@@ -183,10 +199,12 @@ export default function HaccpHome() {
       carregarRegistosHoje(instalacaoSel.id)
       carregarEspacos(instalacaoSel.id)
       carregarRegistosLimpezaHoje(instalacaoSel.id)
+      carregarStaff(instalacaoSel.id)
     } else {
       setEquipamentos([]); setRegistosHoje([])
       setEspacos([]); setTarefasPorEspaco({})
       setRegistosLimpezaHoje([]); setRegistosLimpezaTarefas([])
+      setStaff([])
     }
   }, [instalacaoSel])
 
@@ -287,6 +305,69 @@ export default function HaccpHome() {
     await carregarInstalacoes()
   }
 
+  // ===== STAFF =====
+  async function carregarStaff(instalacaoId: number) {
+    setACarregarStaff(true)
+    const { data, error } = await supabase
+      .from('haccp_staff')
+      .select('*')
+      .eq('instalacao_id', instalacaoId)
+      .eq('ativo', true)
+      .order('ordem', { ascending: true })
+      .order('nome', { ascending: true })
+    if (!error) setStaff((data as Staff[]) || [])
+    setACarregarStaff(false)
+  }
+
+  function abrirFormNovoStaff() {
+    if (!ehGestor) return
+    setStaffEmEdicao(null); setFormStaffNome(''); setNovoStaffAberto(true)
+  }
+
+  function abrirFormEditarStaff(s: Staff) {
+    if (!ehGestor) return
+    setStaffEmEdicao(s); setFormStaffNome(s.nome); setNovoStaffAberto(false)
+  }
+
+  function fecharFormStaff() { setNovoStaffAberto(false); setStaffEmEdicao(null) }
+
+  async function guardarStaff() {
+    if (!ehGestor) return
+    if (!instalacaoSel) return
+    const nome = formStaffNome.trim()
+    if (!nome) { alert('Introduz o nome do funcionário.'); return }
+    setAGuardarStaff(true)
+    const payload = { instalacao_id: instalacaoSel.id, nome }
+    if (staffEmEdicao) {
+      const { error } = await supabase.from('haccp_staff').update({ nome }).eq('id', staffEmEdicao.id)
+      if (error) {
+        if (error.code === '23505') alert('Já existe um funcionário com este nome nesta loja.')
+        else alert('Erro ao atualizar funcionário.')
+        setAGuardarStaff(false); return
+      }
+    } else {
+      const { error } = await supabase.from('haccp_staff').insert([payload])
+      if (error) {
+        if (error.code === '23505') alert('Já existe um funcionário com este nome nesta loja.')
+        else alert('Erro ao criar funcionário.')
+        setAGuardarStaff(false); return
+      }
+    }
+    fecharFormStaff()
+    await carregarStaff(instalacaoSel.id)
+    setAGuardarStaff(false)
+  }
+
+  async function apagarStaff(s: Staff) {
+    if (!ehGestor) return
+    if (!instalacaoSel) return
+    if (!window.confirm(`Remover "${s.nome}" da lista de funcionários? O histórico de registos com este nome é mantido.`)) return
+    // Soft-delete: marcar como inativo para preservar histórico
+    const { error } = await supabase.from('haccp_staff').update({ ativo: false }).eq('id', s.id)
+    if (error) { alert('Erro ao remover funcionário.'); return }
+    await carregarStaff(instalacaoSel.id)
+  }
+
   // ===== EQUIPAMENTOS (TEMPERATURAS) =====
   async function carregarEquipamentos(instalacaoId: number) {
     setACarregarEquipamentos(true)
@@ -377,8 +458,8 @@ export default function HaccpHome() {
 
   async function guardarRegistoTemperatura() {
     if (!equipamentoRegistoSel || !instalacaoSel) return
-    const staff = formRegistoStaff.trim()
-    if (!staff) { alert('Introduz o nome do staff.'); return }
+    const staffNome = formRegistoStaff.trim()
+    if (!staffNome) { alert('Seleciona o funcionário.'); return }
     setAGuardarRegisto(true)
     const conforme = formRegistoTemp >= Number(equipamentoRegistoSel.temp_min_aceitavel) && formRegistoTemp <= Number(equipamentoRegistoSel.temp_max_aceitavel)
     const { data: { user } } = await supabase.auth.getUser()
@@ -387,7 +468,7 @@ export default function HaccpHome() {
       data_registo: obterDataHoje(), periodo: periodoRegistoSel,
       temperatura: formRegistoTemp, conforme,
       observacoes: formRegistoObs.trim() || null,
-      nome_staff: staff, user_id: user?.id || null,
+      nome_staff: staffNome, user_id: user?.id || null,
     }])
     if (error) {
       if (error.code === '23505') alert('Já existe um registo para este equipamento neste período.')
@@ -599,8 +680,8 @@ export default function HaccpHome() {
 
   async function guardarRegistoLimpeza() {
     if (!espacoLimpezaSel || !instalacaoSel) return
-    const staff = formLimpezaStaff.trim()
-    if (!staff) { alert('Introduz o nome do staff.'); return }
+    const staffNome = formLimpezaStaff.trim()
+    if (!staffNome) { alert('Seleciona o funcionário.'); return }
     setAGuardarLimpeza(true)
     const { data: { user } } = await supabase.auth.getUser()
     const { data: regData, error: regError } = await supabase
@@ -609,7 +690,7 @@ export default function HaccpHome() {
         data_registo: obterDataHoje(),
         hora_registo: obterHoraAgora(),
         observacoes: formLimpezaObs.trim() || null,
-        nome_staff: staff,
+        nome_staff: staffNome,
         user_id: user?.id || null,
       }]).select().single()
     if (regError) {
@@ -781,6 +862,8 @@ export default function HaccpHome() {
 
         {abaAtiva === 'temperaturas' && renderAbaTemperaturas()}
         {abaAtiva === 'limpeza' && renderAbaLimpeza()}
+
+        {ehGestor && renderSecaoStaff()}
       </div>
 
       {renderModalRegistoTemperatura()}
@@ -1103,6 +1186,62 @@ export default function HaccpHome() {
     )
   }
 
+  function renderSecaoStaff() {
+    return (
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px', marginTop: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+          <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>👥 Funcionários</p>
+          {!novoStaffAberto && !staffEmEdicao && (
+            <button onClick={abrirFormNovoStaff} style={{ background: '#80c944', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>+ Novo funcionário</button>
+          )}
+        </div>
+
+        <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 14px' }}>
+          Estes nomes aparecem no menu ao registar temperaturas e limpezas.
+        </p>
+
+        {(novoStaffAberto || staffEmEdicao) && (
+          <div style={{ border: '2px solid #80c944', borderRadius: '10px', padding: '16px', marginBottom: '16px', background: '#f9fafb' }}>
+            <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 12px' }}>{staffEmEdicao ? 'Editar funcionário' : 'Novo funcionário'}</p>
+            <div style={{ display: 'grid', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome *</label>
+                <input type="text" value={formStaffNome} onChange={(e) => setFormStaffNome(e.target.value)}
+                  placeholder="ex: Maria Silva"
+                  style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                <button onClick={guardarStaff} disabled={aGuardarStaff}
+                  style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+                  {aGuardarStaff ? 'A guardar...' : 'Guardar'}
+                </button>
+                <button onClick={fecharFormStaff} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {aCarregarStaff ? (
+          <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
+        ) : staff.length === 0 ? (
+          <p style={{ color: '#6b7280', fontSize: '13px' }}>Ainda não há funcionários nesta loja.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {staff.map((s) => (
+              <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px 14px' }}>
+                <p style={{ fontSize: '14px', fontWeight: '500', color: '#111', margin: 0 }}>{s.nome}</p>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button onClick={() => abrirFormEditarStaff(s)} style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
+                  <button onClick={() => apagarStaff(s)} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Remover</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   function renderModalRegistoTemperatura() {
     if (!modalRegistoAberto || !equipamentoRegistoSel) return null
     return (
@@ -1136,10 +1275,20 @@ export default function HaccpHome() {
           </div>
 
           <div style={{ marginBottom: '12px' }}>
-            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome do staff *</label>
-            <input type="text" value={formRegistoStaff} onChange={(e) => setFormRegistoStaff(e.target.value)}
-              placeholder="quem fez o registo"
-              style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Funcionário *</label>
+            {staff.length === 0 ? (
+              <div style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', color: '#92400e' }}>
+                Ainda não há funcionários nesta loja. {ehGestor ? 'Adiciona-os na secção "Funcionários" abaixo.' : 'Pede a um gestor para os adicionar.'}
+              </div>
+            ) : (
+              <select value={formRegistoStaff} onChange={(e) => setFormRegistoStaff(e.target.value)}
+                style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
+                <option value="">— Seleciona quem fez o registo —</option>
+                {staff.map((s) => (
+                  <option key={s.id} value={s.nome}>{s.nome}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Observações (opcional)</label>
@@ -1148,8 +1297,8 @@ export default function HaccpHome() {
           </div>
 
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={guardarRegistoTemperatura} disabled={aGuardarRegisto}
-              style={{ background: '#80c944', color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+            <button onClick={guardarRegistoTemperatura} disabled={aGuardarRegisto || staff.length === 0}
+              style={{ background: staff.length === 0 ? '#d1d5db' : '#80c944', color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: staff.length === 0 ? 'not-allowed' : 'pointer' }}>
               {aGuardarRegisto ? 'A guardar...' : 'Guardar registo'}
             </button>
             <button onClick={fecharModalRegisto} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
@@ -1267,10 +1416,20 @@ export default function HaccpHome() {
           </div>
 
           <div style={{ marginBottom: '12px' }}>
-            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome do staff *</label>
-            <input type="text" value={formLimpezaStaff} onChange={(e) => setFormLimpezaStaff(e.target.value)}
-              placeholder="quem fez a limpeza"
-              style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Funcionário *</label>
+            {staff.length === 0 ? (
+              <div style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', color: '#92400e' }}>
+                Ainda não há funcionários nesta loja. {ehGestor ? 'Adiciona-os na secção "Funcionários" abaixo.' : 'Pede a um gestor para os adicionar.'}
+              </div>
+            ) : (
+              <select value={formLimpezaStaff} onChange={(e) => setFormLimpezaStaff(e.target.value)}
+                style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
+                <option value="">— Seleciona quem fez a limpeza —</option>
+                {staff.map((s) => (
+                  <option key={s.id} value={s.nome}>{s.nome}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Observações (opcional)</label>
@@ -1279,8 +1438,8 @@ export default function HaccpHome() {
           </div>
 
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={guardarRegistoLimpeza} disabled={aGuardarLimpeza}
-              style={{ background: '#80c944', color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+            <button onClick={guardarRegistoLimpeza} disabled={aGuardarLimpeza || staff.length === 0}
+              style={{ background: staff.length === 0 ? '#d1d5db' : '#80c944', color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: staff.length === 0 ? 'not-allowed' : 'pointer' }}>
               {aGuardarLimpeza ? 'A guardar...' : 'Guardar registo'}
             </button>
             <button onClick={fecharModalLimpeza} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>

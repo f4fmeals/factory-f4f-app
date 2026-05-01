@@ -40,6 +40,14 @@ type Registo = {
   hora_feito: string | null
 }
 
+type Staff = {
+  id: number
+  instalacao_id: number
+  nome: string
+  ativo: boolean
+  ordem: number
+}
+
 const CHAVE_INSTALACAO = 'faltas_instalacao_id'
 
 export default function FaltasHome() {
@@ -53,6 +61,10 @@ export default function FaltasHome() {
   const [instalacoes, setInstalacoes] = useState<Instalacao[]>([])
   const [instalacaoSel, setInstalacaoSel] = useState<Instalacao | null>(null)
   const [aCarregarInstalacoes, setACarregarInstalacoes] = useState(false)
+
+  // Staff (apenas leitura - gestão fica no HACCP)
+  const [staff, setStaff] = useState<Staff[]>([])
+  const [aCarregarStaff, setACarregarStaff] = useState(false)
 
   // Abas
   const [abaAtiva, setAbaAtiva] = useState<AbaFaltas>('pendentes')
@@ -114,8 +126,9 @@ export default function FaltasHome() {
     if (instalacaoSel) {
       carregarProdutos(instalacaoSel.id)
       carregarPendentes(instalacaoSel.id)
+      carregarStaff(instalacaoSel.id)
     } else {
-      setProdutos([]); setPendentes([])
+      setProdutos([]); setPendentes([]); setStaff([])
     }
   }, [instalacaoSel])
 
@@ -143,6 +156,10 @@ export default function FaltasHome() {
   function formatarHora(hora: string | null) {
     if (!hora) return '—'
     return hora.substring(0, 5)
+  }
+
+  function imprimirLista() {
+    if (typeof window !== 'undefined') window.print()
   }
 
   // ===== INSTALAÇÕES =====
@@ -174,6 +191,20 @@ export default function FaltasHome() {
   function trocarInstalacao() {
     setInstalacaoSel(null)
     if (typeof window !== 'undefined') sessionStorage.removeItem(CHAVE_INSTALACAO)
+  }
+
+  // ===== STAFF (apenas leitura) =====
+  async function carregarStaff(instalacaoId: number) {
+    setACarregarStaff(true)
+    const { data, error } = await supabase
+      .from('haccp_staff')
+      .select('*')
+      .eq('instalacao_id', instalacaoId)
+      .eq('ativo', true)
+      .order('ordem', { ascending: true })
+      .order('nome', { ascending: true })
+    if (!error) setStaff((data as Staff[]) || [])
+    setACarregarStaff(false)
   }
 
   // ===== PRODUTOS (CATÁLOGO) =====
@@ -267,8 +298,8 @@ export default function FaltasHome() {
 
   async function guardarFalta() {
     if (!produtoFaltaSel || !instalacaoSel) return
-    const staff = formFaltaStaff.trim()
-    if (!staff) { alert('Introduz o nome do staff.'); return }
+    const staffNome = formFaltaStaff.trim()
+    if (!staffNome) { alert('Seleciona o funcionário.'); return }
     if (!formFaltaQtd || formFaltaQtd <= 0) { alert('Introduz uma quantidade válida.'); return }
     setAGuardarFalta(true)
     const { data: { user } } = await supabase.auth.getUser()
@@ -278,7 +309,7 @@ export default function FaltasHome() {
       quantidade: formFaltaQtd,
       observacoes: formFaltaObs.trim() || null,
       estado: 'pendente',
-      nome_staff_pedido: staff,
+      nome_staff_pedido: staffNome,
       user_id_pedido: user?.id || null,
       data_pedido: obterDataHoje(),
       hora_pedido: obterHoraAgora(),
@@ -300,13 +331,13 @@ export default function FaltasHome() {
 
   async function guardarFeito() {
     if (!registoFeitoSel || !instalacaoSel) return
-    const staff = formFeitoStaff.trim()
-    if (!staff) { alert('Introduz o nome do staff.'); return }
+    const staffNome = formFeitoStaff.trim()
+    if (!staffNome) { alert('Seleciona o funcionário.'); return }
     setAGuardarFeito(true)
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('faltas_registos').update({
       estado: 'feito',
-      nome_staff_feito: staff,
+      nome_staff_feito: staffNome,
       user_id_feito: user?.id || null,
       data_feito: obterDataHoje(),
       hora_feito: obterHoraAgora(),
@@ -373,8 +404,24 @@ export default function FaltasHome() {
     )
   }
 
+  // Estilos de impressão — inseridos como elemento <style> normal
+  const estilosImpressao = (
+    <style dangerouslySetInnerHTML={{
+      __html: `
+        @media print {
+          .no-print { display: none !important; }
+          body { background: #fff !important; }
+          .print-only { display: block !important; }
+          .print-item { page-break-inside: avoid; }
+          @page { margin: 1.5cm; }
+        }
+        .print-only { display: none; }
+      `
+    }} />
+  )
+
   const barraTopo = (
-    <div style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #e5e7eb', padding: '6px 32px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+    <div className="no-print" style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #e5e7eb', padding: '6px 32px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         {nomeUtilizador && <span style={{ color: '#6b7280', fontSize: '13px' }}>Olá, {nomeUtilizador}</span>}
         <button onClick={() => router.push('/')} style={{ background: '#fff', border: '1px solid #d1d5db', padding: '6px 14px', borderRadius: '8px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>← Início</button>
@@ -387,6 +434,7 @@ export default function FaltasHome() {
   if (!instalacaoSel) {
     return (
       <div style={{ minHeight: '100vh', background: '#f9fafb' }}>
+        {estilosImpressao}
         {barraTopo}
         <div style={{ padding: '32px', maxWidth: '1100px', margin: '0 auto' }}>
           <div style={{ marginBottom: '24px' }}>
@@ -424,9 +472,10 @@ export default function FaltasHome() {
   // Ecrã principal
   return (
     <div style={{ minHeight: '100vh', background: '#f9fafb' }}>
+      {estilosImpressao}
       {barraTopo}
 
-      <div style={{ padding: '32px' }}>
+      <div className="no-print" style={{ padding: '32px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '24px' }}>
           <div>
             <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#111', margin: '0 0 6px' }}>
@@ -458,6 +507,9 @@ export default function FaltasHome() {
         {abaAtiva === 'catalogo' && renderAbaCatalogo()}
       </div>
 
+      {/* Vista de impressão — só aparece quando se imprime */}
+      {renderVistaImpressao()}
+
       {renderModalFalta()}
       {renderModalFeito()}
       {renderModalHistorico()}
@@ -465,6 +517,65 @@ export default function FaltasHome() {
   )
 
   // ===== RENDERS =====
+
+  function renderAvisoSemStaff() {
+    return (
+      <div style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', color: '#92400e' }}>
+        Ainda não há funcionários nesta loja. {ehGestor ? 'Adiciona-os na secção HACCP → Funcionários.' : 'Pede a um gestor para os adicionar na secção HACCP.'}
+      </div>
+    )
+  }
+
+  function renderVistaImpressao() {
+    return (
+      <div className="print-only" style={{ padding: '0', color: '#000', background: '#fff' }}>
+        <div style={{ borderBottom: '2px solid #000', paddingBottom: '8px', marginBottom: '16px' }}>
+          <h1 style={{ fontSize: '22px', fontWeight: '700', margin: '0 0 4px', color: '#000' }}>
+            Lista de faltas — {instalacaoSel?.nome}
+          </h1>
+          <p style={{ fontSize: '12px', margin: 0, color: '#000' }}>
+            Impresso em {obterDataHoje()} {formatarHora(obterHoraAgora())} · {pendentes.length} {pendentes.length === 1 ? 'item' : 'itens'}
+          </p>
+        </div>
+
+        {pendentes.length === 0 ? (
+          <p style={{ fontSize: '14px', fontStyle: 'italic' }}>Sem faltas pendentes.</p>
+        ) : (
+          <div>
+            {pendentes.map((reg) => {
+              const prod = produtos.find((p) => p.id === reg.produto_id)
+              return (
+                <div key={reg.id} className="print-item" style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '10px 0', borderBottom: '1px dashed #999' }}>
+                  {/* Checkbox para riscar à mão */}
+                  <span style={{
+                    display: 'inline-block',
+                    width: '20px', height: '20px',
+                    border: '2px solid #000',
+                    borderRadius: '3px',
+                    flexShrink: 0,
+                    marginTop: '2px',
+                  }} />
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: '15px', fontWeight: '700', margin: '0 0 2px', color: '#000' }}>
+                      {prod?.nome || `Produto #${reg.produto_id}`}
+                      <span style={{ fontWeight: '700', marginLeft: '10px' }}>
+                        — {reg.quantidade}{prod?.unidade ? ` ${prod.unidade}` : ''}
+                      </span>
+                    </p>
+                    {reg.observacoes && (
+                      <p style={{ fontSize: '12px', margin: '2px 0 0', color: '#000', fontStyle: 'italic' }}>
+                        {reg.observacoes}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   function renderAbaPendentes() {
     return (
@@ -478,7 +589,17 @@ export default function FaltasHome() {
                 ({pendentes.length} {pendentes.length === 1 ? 'item' : 'itens'})
               </span>
             </p>
-            <button onClick={abrirModalHistorico} style={{ background: '#374151', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>📊 Ver histórico</button>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button onClick={imprimirLista} disabled={pendentes.length === 0}
+                style={{
+                  background: pendentes.length === 0 ? '#d1d5db' : '#80c944',
+                  color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px',
+                  fontSize: '13px', cursor: pendentes.length === 0 ? 'not-allowed' : 'pointer', fontWeight: '500'
+                }}>
+                🖨️ Imprimir lista
+              </button>
+              <button onClick={abrirModalHistorico} style={{ background: '#374151', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>📊 Ver histórico</button>
+            </div>
           </div>
 
           {aCarregarPendentes ? (
@@ -647,8 +768,9 @@ export default function FaltasHome() {
 
   function renderModalFalta() {
     if (!modalFaltaAberto || !produtoFaltaSel) return null
+    const semStaff = staff.length === 0
     return (
-      <div onClick={(e) => { if (e.target === e.currentTarget) fecharModalFalta() }}
+      <div className="no-print" onClick={(e) => { if (e.target === e.currentTarget) fecharModalFalta() }}
         style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
         <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '480px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
@@ -674,10 +796,16 @@ export default function FaltasHome() {
           </div>
 
           <div style={{ marginBottom: '12px' }}>
-            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome do staff *</label>
-            <input type="text" value={formFaltaStaff} onChange={(e) => setFormFaltaStaff(e.target.value)}
-              placeholder="quem está a pedir"
-              style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Funcionário *</label>
+            {semStaff ? renderAvisoSemStaff() : (
+              <select value={formFaltaStaff} onChange={(e) => setFormFaltaStaff(e.target.value)}
+                style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
+                <option value="">— Seleciona quem está a pedir —</option>
+                {staff.map((s) => (
+                  <option key={s.id} value={s.nome}>{s.nome}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Observações (opcional)</label>
@@ -687,8 +815,8 @@ export default function FaltasHome() {
           </div>
 
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={guardarFalta} disabled={aGuardarFalta}
-              style={{ background: '#80c944', color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+            <button onClick={guardarFalta} disabled={aGuardarFalta || semStaff}
+              style={{ background: semStaff ? '#d1d5db' : '#80c944', color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: semStaff ? 'not-allowed' : 'pointer' }}>
               {aGuardarFalta ? 'A guardar...' : 'Guardar falta'}
             </button>
             <button onClick={fecharModalFalta} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
@@ -701,8 +829,9 @@ export default function FaltasHome() {
   function renderModalFeito() {
     if (!modalFeitoAberto || !registoFeitoSel) return null
     const prod = produtos.find((p) => p.id === registoFeitoSel.produto_id)
+    const semStaff = staff.length === 0
     return (
-      <div onClick={(e) => { if (e.target === e.currentTarget) fecharModalFeito() }}
+      <div className="no-print" onClick={(e) => { if (e.target === e.currentTarget) fecharModalFeito() }}
         style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
         <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '420px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
@@ -716,15 +845,21 @@ export default function FaltasHome() {
           </div>
 
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome do staff *</label>
-            <input type="text" value={formFeitoStaff} onChange={(e) => setFormFeitoStaff(e.target.value)}
-              placeholder="quem comprou / resolveu"
-              style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Funcionário *</label>
+            {semStaff ? renderAvisoSemStaff() : (
+              <select value={formFeitoStaff} onChange={(e) => setFormFeitoStaff(e.target.value)}
+                style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
+                <option value="">— Seleciona quem comprou —</option>
+                {staff.map((s) => (
+                  <option key={s.id} value={s.nome}>{s.nome}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={guardarFeito} disabled={aGuardarFeito}
-              style={{ background: '#80c944', color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+            <button onClick={guardarFeito} disabled={aGuardarFeito || semStaff}
+              style={{ background: semStaff ? '#d1d5db' : '#80c944', color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: semStaff ? 'not-allowed' : 'pointer' }}>
               {aGuardarFeito ? 'A guardar...' : '✓ Confirmar'}
             </button>
             <button onClick={fecharModalFeito} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
@@ -737,7 +872,7 @@ export default function FaltasHome() {
   function renderModalHistorico() {
     if (!modalHistoricoAberto) return null
     return (
-      <div onClick={(e) => { if (e.target === e.currentTarget) setModalHistoricoAberto(false) }}
+      <div className="no-print" onClick={(e) => { if (e.target === e.currentTarget) setModalHistoricoAberto(false) }}
         style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
         <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '900px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
