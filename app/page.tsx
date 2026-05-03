@@ -30,7 +30,7 @@ export default function Inicio() {
     router.push('/login')
   }
 
-  async function entrarNaArea(area: 'gestao' | 'cozinha' | 'haccp' | 'faltas') {
+  async function entrarNaArea(area: 'gestao' | 'cozinha' | 'haccp' | 'faltas' | 'veiculos') {
     setMensagemErro('')
     setAVerificar(true)
     const rolesPermitidos: Record<string, string[]> = {
@@ -38,6 +38,7 @@ export default function Inicio() {
       cozinha: ['cozinha', 'gestor'],
       haccp: ['cozinha', 'gestor', 'lojista'],
       faltas: ['cozinha', 'gestor', 'lojista'],
+      veiculos: ['cozinha', 'gestor'],
     }
     if (!rolesPermitidos[area].includes(role)) {
       setMensagemErro('Não tens acesso a esta área.')
@@ -62,16 +63,16 @@ export default function Inicio() {
         {/* Logo */}
         <div style={{ marginBottom: '24px' }}>
           <img
-  src="/logo_cor.png"
-  alt="F4F Meals Engine"
-  style={{ height: '120px', width: 'auto', objectFit: 'contain' }}
-/>
+            src="/logo_cor.png"
+            alt="F4F Meals Engine"
+            style={{ height: '120px', width: 'auto', objectFit: 'contain' }}
+          />
         </div>
 
         <p style={{ fontSize: '28px', fontWeight: '600', color: '#111', marginBottom: '8px' }}>F4F MEALS ENGINE</p>
         <p style={{ fontSize: '15px', color: '#6b7280', marginBottom: '48px' }}>Escolhe a área que queres aceder.</p>
 
-        <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '1200px' }}>
           <button
             onClick={() => entrarNaArea('gestao')}
             disabled={aVerificar}
@@ -118,6 +119,18 @@ export default function Inicio() {
             <span style={{ fontSize: '48px' }}>🛒</span>
             <span style={{ fontSize: '18px', fontWeight: '500', color: '#111' }}>Faltas</span>
             <span style={{ fontSize: '12px', color: '#6b7280' }}>Lista de Compras</span>
+          </button>
+
+          <button
+            onClick={() => entrarNaArea('veiculos')}
+            disabled={aVerificar}
+            style={{ width: '220px', height: '180px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'border-color 0.2s' }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = '#80c944'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = '#e5e7eb'}
+          >
+            <span style={{ fontSize: '48px' }}>🚗</span>
+            <span style={{ fontSize: '18px', fontWeight: '500', color: '#111' }}>Veículos</span>
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>Manutenção e Inspeções</span>
           </button>
         </div>
 
