@@ -108,6 +108,7 @@ type ComponenteIngrediente = {
   ingrediente_id: number
   quantidade: number | string
   unidade: string | null
+  observacoes: string | null
   ingredientes: {
     id: number
     nome: string
@@ -573,7 +574,7 @@ export default function Home() {
     setPratosComponentes(pratosComponentesLista)
     const componenteIds = Array.from(new Set(pratosComponentesLista.map((item) => Number(item.componente_id)).filter((id) => !isNaN(id))))
     const { data: componentesIngredientesData } = await supabase
-      .from('componente_ingredientes').select(`id, componente_id, ingrediente_id, quantidade, unidade, ingredientes (id, nome)`)
+      .from('componente_ingredientes').select(`id, componente_id, ingrediente_id, quantidade, unidade, observacoes, ingredientes (id, nome)`)
       .in('componente_id', componenteIds.length > 0 ? componenteIds : [-1])
     setComponentesIngredientes((componentesIngredientesData as ComponenteIngrediente[]) || [])
     const componenteIngredienteIds = Array.from(new Set(((componentesIngredientesData as ComponenteIngrediente[]) || []).map((item) => Number(item.id)).filter((id) => !isNaN(id))))
@@ -967,7 +968,7 @@ export default function Home() {
   }, [detalhesProducao, pratosComponentes, tarefasFinalizacaoNovo])
 
   const ingredientesPorComponente = useMemo(() => {
-    const resultado: Record<string, { ingredienteId: number; nome: string; quantidade: number; unidade: string | null }[]> = {}
+    const resultado: Record<string, { ciId: number; ingredienteId: number; nome: string; quantidade: number; unidade: string | null; observacoes: string | null }[]> = {}
     listaConfeccao.forEach((bloco: any) => {
       const chave = bloco.chave
       const totalFatorPorPrato: { pratoId: number; doses: number; fator: number }[] = []
@@ -976,17 +977,24 @@ export default function Home() {
         const pc = pratosComponentes.find((p) => Number(p.prato_id) === pratoId && Number(p.componente_id) === bloco.componenteId)
         if (pc) { const fator = obterFatorUsoComponente(pc); totalFatorPorPrato.push({ pratoId, doses, fator }) }
       })
-      const ingredientesAgrupados: Record<string, any> = {}
+      const linhas: { ciId: number; ingredienteId: number; nome: string; quantidade: number; unidade: string | null; observacoes: string | null }[] = []
       componentesIngredientes.filter((ci) => Number(ci.componente_id) === bloco.componenteId).forEach((ci) => {
         const infoIng = obterInfoIngredientePorId(ci.ingrediente_id)
         const nomeIng = ci.ingredientes?.nome || infoIng?.nome || 'Ingrediente'; const unidade = ci.unidade || infoIng?.unidade_base || null
-        const chaveIng = [Number(ci.ingrediente_id), normalizarTexto(nomeIng)].join('|')
         let qtdTotal = 0
         totalFatorPorPrato.forEach(({ doses, fator }) => { qtdTotal += parseNumero(ci.quantidade) * fator * doses })
-        if (!ingredientesAgrupados[chaveIng]) ingredientesAgrupados[chaveIng] = { ingredienteId: Number(ci.ingrediente_id), nome: nomeIng, quantidade: 0, unidade }
-        ingredientesAgrupados[chaveIng].quantidade += qtdTotal
+        if (qtdTotal > 0) {
+          linhas.push({
+            ciId: Number(ci.id),
+            ingredienteId: Number(ci.ingrediente_id),
+            nome: nomeIng,
+            quantidade: qtdTotal,
+            unidade,
+            observacoes: ci.observacoes || null,
+          })
+        }
       })
-      resultado[chave] = Object.values(ingredientesAgrupados).filter((i: any) => i.quantidade > 0).sort((a: any, b: any) => a.nome.localeCompare(b.nome))
+      resultado[chave] = linhas.sort((a, b) => a.nome.localeCompare(b.nome))
     })
     return resultado
   }, [listaConfeccao, detalhesProducao, pratosComponentes, componentesIngredientes, ingredientesInfo])
@@ -1442,9 +1450,10 @@ export default function Home() {
                     {ingredientesPorComponente[bloco.chave]?.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
                         {ingredientesPorComponente[bloco.chave].map((ing: any) => (
-                          <span key={ing.ingredienteId} style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '3px 8px', fontSize: '11px', color: '#374151' }}>
+                          <span key={ing.ciId} style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '3px 8px', fontSize: '11px', color: '#374151' }}>
                             <span style={{ fontWeight: '600' }}>{ing.nome}</span>{' '}
                             <span style={{ color: '#16a34a', fontWeight: '500' }}>{formatarQuantidade(ing.quantidade, ing.unidade)}</span>
+                            {ing.observacoes && <span style={{ color: '#6b7280', fontStyle: 'italic' }}> · {ing.observacoes}</span>}
                           </span>
                         ))}
                       </div>
@@ -1666,8 +1675,9 @@ export default function Home() {
                   {ingredientesPorComponente[bloco.chave]?.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', margin: '6px 0 4px 0' }}>
                       {ingredientesPorComponente[bloco.chave].map((ing: any) => (
-                        <span key={ing.ingredienteId} style={{ border: '1px solid #999', borderRadius: '4px', padding: '2px 6px', fontSize: '9px', background: '#f5f5f5' }}>
+                        <span key={ing.ciId} style={{ border: '1px solid #999', borderRadius: '4px', padding: '2px 6px', fontSize: '9px', background: '#f5f5f5' }}>
                           <strong>{ing.nome}</strong> {formatarQuantidade(ing.quantidade, ing.unidade)}
+                          {ing.observacoes && <em style={{ color: '#555' }}> · {ing.observacoes}</em>}
                         </span>
                       ))}
                     </div>
