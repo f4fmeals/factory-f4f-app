@@ -49,6 +49,13 @@ type ProducaoSemanal = {
   nome_semana: string
   data_inicio: string
   estado: string
+  instalacao_id?: number | null
+}
+
+type Instalacao = {
+  id: number
+  nome: string
+  tem_fabrico: boolean
 }
 
 type DetalheProducao = {
@@ -349,6 +356,8 @@ export default function Home() {
   const [quantidadesEdicaoAdicionar, setQuantidadesEdicaoAdicionar] = useState<Record<number, string>>({})
   const [secaoExportar, setSecaoExportar] = useState<SecaoExportacao | null>(null)
   const [nomeUtilizador, setNomeUtilizador] = useState('')
+  const [lojasFabrico, setLojasFabrico] = useState<Instalacao[]>([])
+  const [instalacaoNovaProducao, setInstalacaoNovaProducao] = useState<number | null>(null)
 
   useEffect(() => {
     async function carregarPerfil() {
@@ -357,7 +366,20 @@ export default function Home() {
       const { data: perfil } = await supabase.from('perfis').select('nome').eq('id', user.id).single()
       if (perfil) setNomeUtilizador(perfil.nome)
     }
+    async function carregarLojasFabrico() {
+      const { data } = await supabase
+        .from('instalacoes')
+        .select('id, nome, tem_fabrico')
+        .eq('ativo', true)
+        .eq('tem_fabrico', true)
+        .order('nome', { ascending: true })
+      const lista = (data as Instalacao[]) || []
+      setLojasFabrico(lista)
+      // Se houver apenas uma loja com fabrico, pré-selecionar
+      if (lista.length === 1) setInstalacaoNovaProducao(lista[0].id)
+    }
     carregarPerfil()
+    carregarLojasFabrico()
   }, [])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
@@ -662,12 +684,15 @@ export default function Home() {
     if (plano.length === 0) { alert('Plano vazio.'); return }
     const nomePlanoLimpo = nomeNovaProducao.trim()
     if (!nomePlanoLimpo) { alert('Introduz um nome para o plano.'); return }
+    if (!instalacaoNovaProducao) { alert('Seleciona a loja de fabrico.'); return }
     setAGuardar(true)
-    const { data: prod, error } = await supabase.from('producoes_semanais').insert([{ nome_semana: nomePlanoLimpo, data_inicio: obterDataHoje() }]).select().single()
+    const { data: prod, error } = await supabase.from('producoes_semanais').insert([{ nome_semana: nomePlanoLimpo, data_inicio: obterDataHoje(), instalacao_id: instalacaoNovaProducao }]).select().single()
     if (error) { alert('Erro ao guardar.'); setAGuardar(false); return }
     const { error: itensError } = await supabase.from('producoes_semanais_itens').insert(plano.map((item) => ({ producao_semanal_id: prod.id, prato_id: item.id, quantidade: item.quantidade })))
     if (itensError) { alert('Erro ao guardar itens da produção.'); setAGuardar(false); return }
-    setPlano([]); setQuantidades({}); setPesquisa(''); setPratos([]); setNomeNovaProducao(''); setNovaProducaoAberta(false)
+    setPlano([]); setQuantidades({}); setPesquisa(''); setPratos([]); setNomeNovaProducao('')
+    if (lojasFabrico.length !== 1) setInstalacaoNovaProducao(null)
+    setNovaProducaoAberta(false)
     fetchProducoes(); setAGuardar(false)
   }
 
@@ -1018,6 +1043,22 @@ export default function Home() {
           <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome do plano</label>
           <input type="text" placeholder="ex: Menu Semana 19" value={nomeNovaProducao} onChange={(e) => setNomeNovaProducao(e.target.value)}
             style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+        </div>
+        <div style={{ marginBottom: '12px' }}>
+          <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Loja de fabrico *</label>
+          {lojasFabrico.length === 0 ? (
+            <div style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', color: '#92400e' }}>
+              Nenhuma loja está marcada como tendo fabrico. Vai ao HACCP → Gerir lojas e ativa "Tem fabrico" na loja correta.
+            </div>
+          ) : (
+            <select value={instalacaoNovaProducao ?? ''} onChange={(e) => setInstalacaoNovaProducao(e.target.value ? Number(e.target.value) : null)}
+              style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
+              <option value="">— Seleciona a loja que vai produzir este plano —</option>
+              {lojasFabrico.map((l) => (
+                <option key={l.id} value={l.id}>{l.nome}</option>
+              ))}
+            </select>
+          )}
         </div>
         <div style={{ marginBottom: '12px' }}>
           <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Pesquisar pratos</label>
