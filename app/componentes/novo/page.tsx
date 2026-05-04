@@ -809,6 +809,7 @@ export default function NovoComponentePage() {
           ingrediente_id: Number(item.ingrediente_id),
           quantidade: Number(item.quantidade),
           unidade: item.unidade.trim(),
+          observacoes: item.observacoes.trim() || null,
         }))
 
       console.log('ingredientesValidos', ingredientesValidos)

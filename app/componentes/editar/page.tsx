@@ -139,9 +139,9 @@ function EditarComponentePage() {
       setComponenteSelecionadoId(String(componenteData.id)); setNome(componenteData.nome || '')
       setRendimentoFinal(componenteData.rendimento_final !== null && componenteData.rendimento_final !== undefined ? String(componenteData.rendimento_final) : '')
       setUnidadeRendimento(componenteData.unidade_rendimento || 'g')
-      const { data: ingredientesData, error: erroIngredientes } = await supabase.from('componente_ingredientes').select('id, componente_id, ingrediente_id, quantidade, unidade').eq('componente_id', componenteId).order('id', { ascending: true })
+      const { data: ingredientesData, error: erroIngredientes } = await supabase.from('componente_ingredientes').select('id, componente_id, ingrediente_id, quantidade, unidade, observacoes').eq('componente_id', componenteId).order('id', { ascending: true })
       if (erroIngredientes) { setMensagem(`Erro ao carregar ingredientes: ${erroIngredientes.message}`); setLoadingComponente(false); return }
-      setComponentesIngredientes(ingredientesData && ingredientesData.length > 0 ? ingredientesData.map((item: any) => ({ idLocal: gerarIdLocal(), id: item.id, ingrediente_id: item.ingrediente_id ? String(item.ingrediente_id) : '', quantidade: item.quantidade !== null && item.quantidade !== undefined ? String(item.quantidade) : '', unidade: item.unidade || 'g', observacoes: '' })) : [{ idLocal: gerarIdLocal(), ingrediente_id: '', quantidade: '', unidade: 'g', observacoes: '' }])
+      setComponentesIngredientes(ingredientesData && ingredientesData.length > 0 ? ingredientesData.map((item: any) => ({ idLocal: gerarIdLocal(), id: item.id, ingrediente_id: item.ingrediente_id ? String(item.ingrediente_id) : '', quantidade: item.quantidade !== null && item.quantidade !== undefined ? String(item.quantidade) : '', unidade: item.unidade || 'g', observacoes: item.observacoes || '' })) : [{ idLocal: gerarIdLocal(), ingrediente_id: '', quantidade: '', unidade: 'g', observacoes: '' }])
       const mapaCompIngIdParaIngredienteId = new Map<number, number>()
       for (const item of (ingredientesData || []) as any[]) mapaCompIngIdParaIngredienteId.set(Number(item.id), Number(item.ingrediente_id))
       const { data: tarefasPrepData, error: erroPrep } = await supabase.from('tarefas_preparacao_novo').select('id, componente_ingrediente_id, ordem, tarefa, observacoes').in('componente_ingrediente_id', (ingredientesData || []).map((item: any) => item.id).length > 0 ? (ingredientesData || []).map((item: any) => item.id) : [-1]).order('ordem', { ascending: true })
@@ -194,7 +194,7 @@ function EditarComponentePage() {
       if (erroApagarFinalizacao) { setMensagem(`Erro ao apagar tarefas de finalização: ${erroApagarFinalizacao.message}`); setAGuardar(false); return }
       const { error: erroApagarIngredientes } = await supabase.from('componente_ingredientes').delete().eq('componente_id', componenteId)
       if (erroApagarIngredientes) { setMensagem(`Erro ao apagar ingredientes: ${erroApagarIngredientes.message}`); setAGuardar(false); return }
-      const ingredientesValidos = componentesIngredientes.filter((item) => item.ingrediente_id && item.quantidade.trim()).map((item) => ({ componente_id: componenteId, ingrediente_id: Number(item.ingrediente_id), quantidade: Number(item.quantidade), unidade: item.unidade.trim() }))
+      const ingredientesValidos = componentesIngredientes.filter((item) => item.ingrediente_id && item.quantidade.trim()).map((item) => ({ componente_id: componenteId, ingrediente_id: Number(item.ingrediente_id), quantidade: Number(item.quantidade), unidade: item.unidade.trim(), observacoes: item.observacoes.trim() || null }))
       let componentesIngredientesCriados: ComponenteIngredienteCriado[] = []
       if (ingredientesValidos.length > 0) {
         const { data, error } = await supabase.from('componente_ingredientes').insert(ingredientesValidos).select('id, componente_id, ingrediente_id')
@@ -325,6 +325,10 @@ function EditarComponentePage() {
                   Remover
                 </button>
               </div>
+              <div style={{ marginTop: '12px' }}>
+                <label style={labelStyle}>Observações</label>
+                <input type="text" value={item.observacoes} onChange={(e) => atualizarIngredienteComponente(item.idLocal, 'observacoes', e.target.value)} placeholder="Opcional" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
+              </div>
             </div>
           ))}
         </div>
@@ -339,23 +343,29 @@ function EditarComponentePage() {
             </button>
           </div>
           {tarefasPreparacao.map((item) => (
-            <div key={item.idLocal} style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 80px auto', gap: '12px', alignItems: 'end', marginBottom: '12px' }}>
-              <div>
-                <label style={labelStyle}>Ingrediente</label>
-                <IngredientSearchSelect ingredientes={ingredientes} value={item.ingrediente_id} onChange={(v) => atualizarTarefaPreparacao(item.idLocal, 'ingrediente_id', v)} disabled={!componenteSelecionadoId} />
+            <div key={item.idLocal} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', background: '#fff', marginBottom: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 80px auto', gap: '12px', alignItems: 'end' }}>
+                <div>
+                  <label style={labelStyle}>Ingrediente</label>
+                  <IngredientSearchSelect ingredientes={ingredientes} value={item.ingrediente_id} onChange={(v) => atualizarTarefaPreparacao(item.idLocal, 'ingrediente_id', v)} disabled={!componenteSelecionadoId} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Tarefa</label>
+                  <input type="text" value={item.tarefa} onChange={(e) => atualizarTarefaPreparacao(item.idLocal, 'tarefa', e.target.value)} placeholder="Ex: Picar finamente" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Ordem</label>
+                  <input type="number" value={item.ordem} onChange={(e) => atualizarTarefaPreparacao(item.idLocal, 'ordem', e.target.value)} placeholder="1" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
+                </div>
+                <button type="button" onClick={() => removerTarefaPreparacao(item.idLocal)} disabled={!componenteSelecionadoId}
+                  style={{ backgroundColor: !componenteSelecionadoId ? '#d1d5db' : '#ef4444', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: !componenteSelecionadoId ? 'not-allowed' : 'pointer', alignSelf: 'end' }}>
+                  Remover
+                </button>
               </div>
-              <div>
-                <label style={labelStyle}>Tarefa</label>
-                <input type="text" value={item.tarefa} onChange={(e) => atualizarTarefaPreparacao(item.idLocal, 'tarefa', e.target.value)} placeholder="Ex: Picar finamente" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
+              <div style={{ marginTop: '12px' }}>
+                <label style={labelStyle}>Observações</label>
+                <input type="text" value={item.observacoes} onChange={(e) => atualizarTarefaPreparacao(item.idLocal, 'observacoes', e.target.value)} placeholder="Opcional" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
               </div>
-              <div>
-                <label style={labelStyle}>Ordem</label>
-                <input type="number" value={item.ordem} onChange={(e) => atualizarTarefaPreparacao(item.idLocal, 'ordem', e.target.value)} placeholder="1" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
-              </div>
-              <button type="button" onClick={() => removerTarefaPreparacao(item.idLocal)} disabled={!componenteSelecionadoId}
-                style={{ backgroundColor: !componenteSelecionadoId ? '#d1d5db' : '#ef4444', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: !componenteSelecionadoId ? 'not-allowed' : 'pointer', alignSelf: 'end' }}>
-                Remover
-              </button>
             </div>
           ))}
         </div>
@@ -370,19 +380,25 @@ function EditarComponentePage() {
             </button>
           </div>
           {tarefasConfeccao.map((item) => (
-            <div key={item.idLocal} style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto', gap: '12px', alignItems: 'end', marginBottom: '12px' }}>
-              <div>
-                <label style={labelStyle}>Ordem</label>
-                <input type="number" value={item.ordem} onChange={(e) => atualizarTarefaConfeccao(item.idLocal, 'ordem', e.target.value)} placeholder="1" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
+            <div key={item.idLocal} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', background: '#fff', marginBottom: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto', gap: '12px', alignItems: 'end' }}>
+                <div>
+                  <label style={labelStyle}>Ordem</label>
+                  <input type="number" value={item.ordem} onChange={(e) => atualizarTarefaConfeccao(item.idLocal, 'ordem', e.target.value)} placeholder="1" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Tarefa</label>
+                  <input type="text" value={item.tarefa} onChange={(e) => atualizarTarefaConfeccao(item.idLocal, 'tarefa', e.target.value)} placeholder="Ex: Cozer o frango" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
+                </div>
+                <button type="button" onClick={() => removerTarefaConfeccao(item.idLocal)} disabled={!componenteSelecionadoId}
+                  style={{ backgroundColor: !componenteSelecionadoId ? '#d1d5db' : '#ef4444', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: !componenteSelecionadoId ? 'not-allowed' : 'pointer', alignSelf: 'end' }}>
+                  Remover
+                </button>
               </div>
-              <div>
-                <label style={labelStyle}>Tarefa</label>
-                <input type="text" value={item.tarefa} onChange={(e) => atualizarTarefaConfeccao(item.idLocal, 'tarefa', e.target.value)} placeholder="Ex: Cozer o frango" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
+              <div style={{ marginTop: '12px' }}>
+                <label style={labelStyle}>Observações</label>
+                <input type="text" value={item.observacoes} onChange={(e) => atualizarTarefaConfeccao(item.idLocal, 'observacoes', e.target.value)} placeholder="Opcional" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
               </div>
-              <button type="button" onClick={() => removerTarefaConfeccao(item.idLocal)} disabled={!componenteSelecionadoId}
-                style={{ backgroundColor: !componenteSelecionadoId ? '#d1d5db' : '#ef4444', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: !componenteSelecionadoId ? 'not-allowed' : 'pointer', alignSelf: 'end' }}>
-                Remover
-              </button>
             </div>
           ))}
         </div>
@@ -397,19 +413,25 @@ function EditarComponentePage() {
             </button>
           </div>
           {tarefasFinalizacao.map((item) => (
-            <div key={item.idLocal} style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto', gap: '12px', alignItems: 'end', marginBottom: '12px' }}>
-              <div>
-                <label style={labelStyle}>Ordem</label>
-                <input type="number" value={item.ordem} onChange={(e) => atualizarTarefaFinalizacao(item.idLocal, 'ordem', e.target.value)} placeholder="1" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
+            <div key={item.idLocal} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', background: '#fff', marginBottom: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto', gap: '12px', alignItems: 'end' }}>
+                <div>
+                  <label style={labelStyle}>Ordem</label>
+                  <input type="number" value={item.ordem} onChange={(e) => atualizarTarefaFinalizacao(item.idLocal, 'ordem', e.target.value)} placeholder="1" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Tarefa</label>
+                  <input type="text" value={item.tarefa} onChange={(e) => atualizarTarefaFinalizacao(item.idLocal, 'tarefa', e.target.value)} placeholder="Ex: Adicionar sementes" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
+                </div>
+                <button type="button" onClick={() => removerTarefaFinalizacao(item.idLocal)} disabled={!componenteSelecionadoId}
+                  style={{ backgroundColor: !componenteSelecionadoId ? '#d1d5db' : '#ef4444', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: !componenteSelecionadoId ? 'not-allowed' : 'pointer', alignSelf: 'end' }}>
+                  Remover
+                </button>
               </div>
-              <div>
-                <label style={labelStyle}>Tarefa</label>
-                <input type="text" value={item.tarefa} onChange={(e) => atualizarTarefaFinalizacao(item.idLocal, 'tarefa', e.target.value)} placeholder="Ex: Adicionar sementes" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
+              <div style={{ marginTop: '12px' }}>
+                <label style={labelStyle}>Observações</label>
+                <input type="text" value={item.observacoes} onChange={(e) => atualizarTarefaFinalizacao(item.idLocal, 'observacoes', e.target.value)} placeholder="Opcional" style={!componenteSelecionadoId ? inputDisabledStyle : inputStyle} disabled={!componenteSelecionadoId} />
               </div>
-              <button type="button" onClick={() => removerTarefaFinalizacao(item.idLocal)} disabled={!componenteSelecionadoId}
-                style={{ backgroundColor: !componenteSelecionadoId ? '#d1d5db' : '#ef4444', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: !componenteSelecionadoId ? 'not-allowed' : 'pointer', alignSelf: 'end' }}>
-                Remover
-              </button>
             </div>
           ))}
         </div>
