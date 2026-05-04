@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
-type AbaHaccp = 'temperaturas' | 'limpeza'
+type AbaHaccp = 'temperaturas' | 'limpeza' | 'lavagem_horto' | 'confeccao_arref'
 
 type Instalacao = {
   id: number
@@ -13,6 +13,7 @@ type Instalacao = {
   morada: string | null
   ativo: boolean
   ordem: number
+  tem_fabrico: boolean
 }
 
 type Equipamento = {
@@ -82,6 +83,31 @@ type Staff = {
 
 const CHAVE_INSTALACAO = 'haccp_instalacao_id'
 
+type RegistoLavagem = {
+  id: string
+  atualizado_em: string
+  ingrediente_nome: string
+  componente_nome: string
+  prato_nome: string
+  quantidade_desinfectante_ml: number
+  litros_agua: number
+  tempo_minutos: number
+  nome_staff: string | null
+}
+
+type RegistoConfeccao = {
+  id: string
+  atualizado_em: string
+  componente_nome: string
+  pratos_destino: string
+  quantidade_final: number | null
+  unidade_rendimento: string | null
+  temperatura_confeccao: number | null
+  temperatura_abatimento: number | null
+  tempo_arrefecimento: number | null
+  nome_staff: string | null
+}
+
 export default function HaccpHome() {
   const router = useRouter()
   const [aVerificar, setAVerificar] = useState(true)
@@ -98,6 +124,7 @@ export default function HaccpHome() {
   const [instalacaoEmEdicao, setInstalacaoEmEdicao] = useState<Instalacao | null>(null)
   const [formInstNome, setFormInstNome] = useState('')
   const [formInstMorada, setFormInstMorada] = useState('')
+  const [formInstTemFabrico, setFormInstTemFabrico] = useState(false)
   const [aGuardarInst, setAGuardarInst] = useState(false)
 
   // Staff
@@ -175,6 +202,18 @@ export default function HaccpHome() {
   const [filtroLimpezaDataInicio, setFiltroLimpezaDataInicio] = useState('')
   const [filtroLimpezaDataFim, setFiltroLimpezaDataFim] = useState('')
 
+  // --- LAVAGEM HORTOFRUTÍCOLAS ---
+  const [registosLavagem, setRegistosLavagem] = useState<RegistoLavagem[]>([])
+  const [aCarregarLavagem, setACarregarLavagem] = useState(false)
+  const [filtroLavagemDataInicio, setFiltroLavagemDataInicio] = useState('')
+  const [filtroLavagemDataFim, setFiltroLavagemDataFim] = useState('')
+
+  // --- CONFEÇÃO E ARREFECIMENTO ---
+  const [registosConfeccao, setRegistosConfeccao] = useState<RegistoConfeccao[]>([])
+  const [aCarregarConfeccao, setACarregarConfeccao] = useState(false)
+  const [filtroConfeccaoDataInicio, setFiltroConfeccaoDataInicio] = useState('')
+  const [filtroConfeccaoDataFim, setFiltroConfeccaoDataFim] = useState('')
+
   // ===== Inicialização =====
   useEffect(() => {
     async function verificarAcesso() {
@@ -205,8 +244,27 @@ export default function HaccpHome() {
       setEspacos([]); setTarefasPorEspaco({})
       setRegistosLimpezaHoje([]); setRegistosLimpezaTarefas([])
       setStaff([])
+      setRegistosLavagem([]); setRegistosConfeccao([])
     }
   }, [instalacaoSel])
+
+  useEffect(() => {
+    if (!instalacaoSel || !instalacaoSel.tem_fabrico) return
+    if (abaAtiva === 'lavagem_horto' && registosLavagem.length === 0 && !aCarregarLavagem) {
+      const hoje = obterDataHoje()
+      const ha7 = new Date(); ha7.setDate(ha7.getDate() - 7)
+      const data7 = `${ha7.getFullYear()}-${String(ha7.getMonth() + 1).padStart(2, '0')}-${String(ha7.getDate()).padStart(2, '0')}`
+      setFiltroLavagemDataInicio(data7); setFiltroLavagemDataFim(hoje)
+      carregarRegistosLavagem(data7, hoje)
+    }
+    if (abaAtiva === 'confeccao_arref' && registosConfeccao.length === 0 && !aCarregarConfeccao) {
+      const hoje = obterDataHoje()
+      const ha7 = new Date(); ha7.setDate(ha7.getDate() - 7)
+      const data7 = `${ha7.getFullYear()}-${String(ha7.getMonth() + 1).padStart(2, '0')}-${String(ha7.getDate()).padStart(2, '0')}`
+      setFiltroConfeccaoDataInicio(data7); setFiltroConfeccaoDataFim(hoje)
+      carregarRegistosConfeccao(data7, hoje)
+    }
+  }, [abaAtiva, instalacaoSel])
 
   useEffect(() => {
     const bloquear = modalRegistoAberto || modalHistoricoAberto || gestaoInstalacoesAberta || modalLimpezaAberto || modalHistoricoLimpezaAberto
@@ -267,12 +325,12 @@ export default function HaccpHome() {
 
   function abrirFormNovaInstalacao() {
     if (!ehGestor) return
-    setInstalacaoEmEdicao(null); setFormInstNome(''); setFormInstMorada(''); setFormInstalacaoAberto(true)
+    setInstalacaoEmEdicao(null); setFormInstNome(''); setFormInstMorada(''); setFormInstTemFabrico(false); setFormInstalacaoAberto(true)
   }
 
   function abrirFormEditarInstalacao(inst: Instalacao) {
     if (!ehGestor) return
-    setInstalacaoEmEdicao(inst); setFormInstNome(inst.nome); setFormInstMorada(inst.morada || ''); setFormInstalacaoAberto(true)
+    setInstalacaoEmEdicao(inst); setFormInstNome(inst.nome); setFormInstMorada(inst.morada || ''); setFormInstTemFabrico(!!inst.tem_fabrico); setFormInstalacaoAberto(true)
   }
 
   function fecharFormInstalacao() { setFormInstalacaoAberto(false); setInstalacaoEmEdicao(null) }
@@ -282,7 +340,7 @@ export default function HaccpHome() {
     const nome = formInstNome.trim()
     if (!nome) { alert('Introduz o nome da loja.'); return }
     setAGuardarInst(true)
-    const payload = { nome, morada: formInstMorada.trim() || null }
+    const payload = { nome, morada: formInstMorada.trim() || null, tem_fabrico: formInstTemFabrico }
     if (instalacaoEmEdicao) {
       const { error } = await supabase.from('instalacoes').update(payload).eq('id', instalacaoEmEdicao.id)
       if (error) { alert('Erro ao atualizar loja.'); setAGuardarInst(false); return }
@@ -750,6 +808,162 @@ export default function HaccpHome() {
     setACarregarHistoricoLimpeza(false)
   }
 
+  // ===== LAVAGEM HORTOFRUTÍCOLAS =====
+  async function carregarRegistosLavagem(dataInicio: string, dataFim: string) {
+    if (!instalacaoSel) return
+    setACarregarLavagem(true)
+
+    // 1. Buscar produções da loja
+    const { data: producoes } = await supabase
+      .from('producoes_semanais')
+      .select('id')
+      .eq('instalacao_id', instalacaoSel.id)
+    const producaoIds = ((producoes as any[]) || []).map((p) => p.id)
+    if (producaoIds.length === 0) { setRegistosLavagem([]); setACarregarLavagem(false); return }
+
+    // 2. Buscar registos de desinfeção concluídos no intervalo
+    const dataInicioISO = `${dataInicio}T00:00:00`
+    const dataFimISO = `${dataFim}T23:59:59`
+    const { data: regDes } = await supabase
+      .from('registos_desinfeccao')
+      .select('id, atualizado_em, tarefa_preparacao_id, quantidade_desinfectante_ml, litros_agua, tempo_minutos, nome_staff, concluido')
+      .in('producao_semanal_id', producaoIds)
+      .eq('concluido', true)
+      .gte('atualizado_em', dataInicioISO)
+      .lte('atualizado_em', dataFimISO)
+      .order('atualizado_em', { ascending: false })
+    const desinfeccoes = (regDes as any[]) || []
+    if (desinfeccoes.length === 0) { setRegistosLavagem([]); setACarregarLavagem(false); return }
+
+    // 3. Buscar as tarefas de preparação para descobrir o componente_ingrediente
+    const tarefaIds = desinfeccoes.map((d) => d.tarefa_preparacao_id)
+    const { data: tarefas } = await supabase
+      .from('tarefas_preparacao_novo')
+      .select('id, componente_ingrediente_id')
+      .in('id', tarefaIds)
+    const tarefasMap = new Map<number, number>()
+    ;((tarefas as any[]) || []).forEach((t) => tarefasMap.set(t.id, t.componente_ingrediente_id))
+
+    // 4. Buscar componente_ingredientes para descobrir ingrediente e componente
+    const ciIds = Array.from(new Set(Array.from(tarefasMap.values())))
+    const { data: cis } = await supabase
+      .from('componente_ingredientes')
+      .select('id, componente_id, ingredientes (nome), componentes (nome)')
+      .in('id', ciIds)
+    const ciMap = new Map<number, { ingredienteNome: string; componenteNome: string; componenteId: number }>()
+    ;((cis as any[]) || []).forEach((ci) => {
+      ciMap.set(ci.id, {
+        ingredienteNome: ci.ingredientes?.nome || '—',
+        componenteNome: ci.componentes?.nome || '—',
+        componenteId: ci.componente_id,
+      })
+    })
+
+    // 5. Buscar pratos que usam esses componentes
+    const componenteIds = Array.from(new Set(Array.from(ciMap.values()).map((v) => v.componenteId)))
+    const { data: pcs } = await supabase
+      .from('pratos_componentes')
+      .select('componente_id, pratos (nome)')
+      .in('componente_id', componenteIds)
+    const pratosPorComponente = new Map<number, string[]>()
+    ;((pcs as any[]) || []).forEach((pc) => {
+      const arr = pratosPorComponente.get(pc.componente_id) || []
+      const nome = pc.pratos?.nome
+      if (nome && !arr.includes(nome)) arr.push(nome)
+      pratosPorComponente.set(pc.componente_id, arr)
+    })
+
+    // 6. Montar resultado
+    const resultado: RegistoLavagem[] = desinfeccoes.map((d) => {
+      const ciId = tarefasMap.get(d.tarefa_preparacao_id)
+      const ciInfo = ciId ? ciMap.get(ciId) : null
+      const pratosArr = ciInfo ? (pratosPorComponente.get(ciInfo.componenteId) || []) : []
+      return {
+        id: d.id,
+        atualizado_em: d.atualizado_em,
+        ingrediente_nome: ciInfo?.ingredienteNome || '—',
+        componente_nome: ciInfo?.componenteNome || '—',
+        prato_nome: pratosArr.join(', ') || '—',
+        quantidade_desinfectante_ml: Number(d.quantidade_desinfectante_ml),
+        litros_agua: Number(d.litros_agua),
+        tempo_minutos: Number(d.tempo_minutos),
+        nome_staff: d.nome_staff || null,
+      }
+    })
+    setRegistosLavagem(resultado)
+    setACarregarLavagem(false)
+  }
+
+  // ===== CONFEÇÃO E ARREFECIMENTO =====
+  async function carregarRegistosConfeccao(dataInicio: string, dataFim: string) {
+    if (!instalacaoSel) return
+    setACarregarConfeccao(true)
+
+    // 1. Buscar produções da loja
+    const { data: producoes } = await supabase
+      .from('producoes_semanais')
+      .select('id')
+      .eq('instalacao_id', instalacaoSel.id)
+    const producaoIds = ((producoes as any[]) || []).map((p) => p.id)
+    if (producaoIds.length === 0) { setRegistosConfeccao([]); setACarregarConfeccao(false); return }
+
+    // 2. Buscar registos de confeção (setor='confeccao') no intervalo
+    const dataInicioISO = `${dataInicio}T00:00:00`
+    const dataFimISO = `${dataFim}T23:59:59`
+    const { data: regs } = await supabase
+      .from('registos_producao')
+      .select('id, atualizado_em, referencia_id, quantidade_final, temperatura_confeccao, temperatura_abatimento, tempo_arrefecimento, nome_staff, impressao_etiqueta')
+      .in('producao_semanal_id', producaoIds)
+      .eq('setor', 'confeccao')
+      .gte('atualizado_em', dataInicioISO)
+      .lte('atualizado_em', dataFimISO)
+      .order('atualizado_em', { ascending: false })
+    const confs = (regs as any[]) || []
+    if (confs.length === 0) { setRegistosConfeccao([]); setACarregarConfeccao(false); return }
+
+    // 3. Buscar componentes (referencia_id é o componente_id na confeção)
+    const componenteIds = Array.from(new Set(confs.map((c) => c.referencia_id)))
+    const { data: comps } = await supabase
+      .from('componentes')
+      .select('id, nome, unidade_rendimento')
+      .in('id', componenteIds)
+    const compMap = new Map<number, { nome: string; unidade_rendimento: string | null }>()
+    ;((comps as any[]) || []).forEach((c) => compMap.set(c.id, { nome: c.nome, unidade_rendimento: c.unidade_rendimento }))
+
+    // 4. Buscar pratos destino de cada componente
+    const { data: pcs } = await supabase
+      .from('pratos_componentes')
+      .select('componente_id, pratos (nome)')
+      .in('componente_id', componenteIds)
+    const pratosPorComponente = new Map<number, string[]>()
+    ;((pcs as any[]) || []).forEach((pc) => {
+      const arr = pratosPorComponente.get(pc.componente_id) || []
+      const nome = pc.pratos?.nome
+      if (nome && !arr.includes(nome)) arr.push(nome)
+      pratosPorComponente.set(pc.componente_id, arr)
+    })
+
+    // 5. Montar resultado
+    const resultado: RegistoConfeccao[] = confs.map((c) => {
+      const compInfo = compMap.get(c.referencia_id)
+      const pratosArr = pratosPorComponente.get(c.referencia_id) || []
+      return {
+        id: c.id,
+        atualizado_em: c.atualizado_em,
+        componente_nome: compInfo?.nome || '—',
+        pratos_destino: pratosArr.join(', ') || '—',
+        quantidade_final: c.quantidade_final !== null ? Number(c.quantidade_final) : null,
+        unidade_rendimento: compInfo?.unidade_rendimento || null,
+        temperatura_confeccao: c.temperatura_confeccao !== null ? Number(c.temperatura_confeccao) : null,
+        temperatura_abatimento: c.temperatura_abatimento !== null ? Number(c.temperatura_abatimento) : null,
+        tempo_arrefecimento: c.tempo_arrefecimento !== null ? Number(c.tempo_arrefecimento) : null,
+        nome_staff: c.nome_staff || null,
+      }
+    })
+    setRegistosConfeccao(resultado)
+    setACarregarConfeccao(false)
+  }
+
   // ===== RENDER =====
   if (aVerificar) {
     return (
@@ -850,18 +1064,24 @@ export default function HaccpHome() {
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '32px' }}>
           {([
-            { id: 'temperaturas', label: '🌡️ Temperaturas de frigoríficos' },
-            { id: 'limpeza', label: '🧽 Registos de limpeza' },
-          ] as { id: AbaHaccp; label: string }[]).map((aba) => (
-            <button key={aba.id} onClick={() => setAbaAtiva(aba.id)}
-              style={{ backgroundColor: abaAtiva === aba.id ? '#80c944' : '#e5e7eb', color: abaAtiva === aba.id ? '#fff' : '#111', border: 'none', padding: '10px 18px', borderRadius: '8px', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
-              {aba.label}
-            </button>
-          ))}
+            { id: 'temperaturas', label: '🌡️ Temperaturas de frigoríficos', soFabrico: false },
+            { id: 'limpeza', label: '🧽 Registos de limpeza', soFabrico: false },
+            { id: 'lavagem_horto', label: '🥬 Lavagem de hortofrutícolas', soFabrico: true },
+            { id: 'confeccao_arref', label: '🔥 Confeção e arrefecimento', soFabrico: true },
+          ] as { id: AbaHaccp; label: string; soFabrico: boolean }[])
+            .filter((aba) => !aba.soFabrico || (instalacaoSel?.tem_fabrico && ehGestor))
+            .map((aba) => (
+              <button key={aba.id} onClick={() => setAbaAtiva(aba.id)}
+                style={{ backgroundColor: abaAtiva === aba.id ? '#80c944' : '#e5e7eb', color: abaAtiva === aba.id ? '#fff' : '#111', border: 'none', padding: '10px 18px', borderRadius: '8px', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
+                {aba.label}
+              </button>
+            ))}
         </div>
 
         {abaAtiva === 'temperaturas' && renderAbaTemperaturas()}
         {abaAtiva === 'limpeza' && renderAbaLimpeza()}
+        {abaAtiva === 'lavagem_horto' && renderAbaLavagemHorto()}
+        {abaAtiva === 'confeccao_arref' && renderAbaConfeccaoArref()}
 
         {ehGestor && renderSecaoStaff()}
       </div>
@@ -1242,6 +1462,171 @@ export default function HaccpHome() {
     )
   }
 
+  function formatarDataHora(iso: string) {
+    if (!iso) return '—'
+    const d = new Date(iso)
+    const data = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+    const hora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    return `${data} ${hora}`
+  }
+
+  function formatarQtdConfeccao(valor: number | null, unidade: string | null) {
+    if (valor === null || valor === undefined) return '—'
+    const u = (unidade || 'kg').toLowerCase()
+    if (u === 'g') return `${Math.round(valor)} g`
+    if (u === 'ml') return `${Math.round(valor)} ml`
+    if (u === 'l') return `${valor.toFixed(1)} l`
+    if (u === 'un') return `${Math.round(valor)} un`
+    return `${valor.toFixed(1)} kg`
+  }
+
+  function renderAbaLavagemHorto() {
+    return (
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+          <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>🥬 Lavagem de hortofrutícolas</p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>De</label>
+            <input type="date" value={filtroLavagemDataInicio} onChange={(e) => setFiltroLavagemDataInicio(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Até</label>
+            <input type="date" value={filtroLavagemDataFim} onChange={(e) => setFiltroLavagemDataFim(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+          </div>
+          <button onClick={() => carregarRegistosLavagem(filtroLavagemDataInicio, filtroLavagemDataFim)}
+            style={{ background: '#374151', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Aplicar</button>
+        </div>
+
+        {aCarregarLavagem ? (
+          <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
+        ) : registosLavagem.length === 0 ? (
+          <p style={{ color: '#6b7280', fontSize: '13px' }}>Sem registos de lavagem no período selecionado.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ background: '#f3f4f6' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Data/Hora</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Ingrediente</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Componente</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Prato destino</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Desinfectante</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Água</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Tempo</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Funcionário</th>
+                </tr>
+              </thead>
+              <tbody>
+                {registosLavagem.map((r) => (
+                  <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <td style={{ padding: '8px 10px', color: '#111' }}>{formatarDataHora(r.atualizado_em)}</td>
+                    <td style={{ padding: '8px 10px', color: '#111', fontWeight: '500' }}>{r.ingrediente_nome}</td>
+                    <td style={{ padding: '8px 10px', color: '#374151' }}>{r.componente_nome}</td>
+                    <td style={{ padding: '8px 10px', color: '#374151' }}>{r.prato_nome}</td>
+                    <td style={{ padding: '8px 10px', color: '#111' }}>{r.quantidade_desinfectante_ml} ml</td>
+                    <td style={{ padding: '8px 10px', color: '#111' }}>{r.litros_agua} l</td>
+                    <td style={{ padding: '8px 10px', color: '#111' }}>{r.tempo_minutos} min</td>
+                    <td style={{ padding: '8px 10px', color: '#111' }}>{r.nome_staff || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function renderAbaConfeccaoArref() {
+    return (
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+          <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>🔥 Confeção e arrefecimento</p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>De</label>
+            <input type="date" value={filtroConfeccaoDataInicio} onChange={(e) => setFiltroConfeccaoDataInicio(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Até</label>
+            <input type="date" value={filtroConfeccaoDataFim} onChange={(e) => setFiltroConfeccaoDataFim(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+          </div>
+          <button onClick={() => carregarRegistosConfeccao(filtroConfeccaoDataInicio, filtroConfeccaoDataFim)}
+            style={{ background: '#374151', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Aplicar</button>
+        </div>
+
+        {aCarregarConfeccao ? (
+          <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
+        ) : registosConfeccao.length === 0 ? (
+          <p style={{ color: '#6b7280', fontSize: '13px' }}>Sem registos de confeção no período selecionado.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ background: '#f3f4f6' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Data/Hora</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Componente</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Prato destino</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Qtd. final</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Confeção</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Abatimento</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Arrefecimento</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Status</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Funcionário</th>
+                </tr>
+              </thead>
+              <tbody>
+                {registosConfeccao.map((r) => {
+                  const confOk = r.temperatura_confeccao !== null && r.temperatura_confeccao >= 75
+                  const abatOk = r.temperatura_abatimento !== null && r.temperatura_abatimento >= 2 && r.temperatura_abatimento <= 6
+                  const arrefOk = r.tempo_arrefecimento !== null && r.tempo_arrefecimento >= 20 && r.tempo_arrefecimento <= 120
+                  const todosPreenchidos = r.temperatura_confeccao !== null && r.temperatura_abatimento !== null && r.tempo_arrefecimento !== null
+                  const conforme = todosPreenchidos && confOk && abatOk && arrefOk
+                  return (
+                    <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '8px 10px', color: '#111' }}>{formatarDataHora(r.atualizado_em)}</td>
+                      <td style={{ padding: '8px 10px', color: '#111', fontWeight: '500' }}>{r.componente_nome}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.pratos_destino}</td>
+                      <td style={{ padding: '8px 10px', color: '#111' }}>{formatarQtdConfeccao(r.quantidade_final, r.unidade_rendimento)}</td>
+                      <td style={{ padding: '8px 10px', fontWeight: '600', color: r.temperatura_confeccao === null ? '#9ca3af' : confOk ? '#16a34a' : '#dc2626' }}>
+                        {r.temperatura_confeccao !== null ? `${r.temperatura_confeccao.toFixed(1)}°C ${confOk ? '✓' : '⚠'}` : '—'}
+                      </td>
+                      <td style={{ padding: '8px 10px', fontWeight: '600', color: r.temperatura_abatimento === null ? '#9ca3af' : abatOk ? '#16a34a' : '#dc2626' }}>
+                        {r.temperatura_abatimento !== null ? `${r.temperatura_abatimento.toFixed(1)}°C ${abatOk ? '✓' : '⚠'}` : '—'}
+                      </td>
+                      <td style={{ padding: '8px 10px', fontWeight: '600', color: r.tempo_arrefecimento === null ? '#9ca3af' : arrefOk ? '#16a34a' : '#dc2626' }}>
+                        {r.tempo_arrefecimento !== null ? `${r.tempo_arrefecimento} min ${arrefOk ? '✓' : '⚠'}` : '—'}
+                      </td>
+                      <td style={{ padding: '8px 10px' }}>
+                        {todosPreenchidos ? (
+                          <span style={{ fontSize: '11px', fontWeight: '600', padding: '3px 8px', borderRadius: '99px', background: conforme ? '#dcfce7' : '#fee2e2', color: conforme ? '#166534' : '#991b1b' }}>
+                            {conforme ? '✓ Conforme' : '⚠ Não conforme'}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '11px', color: '#9ca3af' }}>Incompleto</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '8px 10px', color: '#111' }}>{r.nome_staff || '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   function renderModalRegistoTemperatura() {
     if (!modalRegistoAberto || !equipamentoRegistoSel) return null
     return (
@@ -1343,12 +1728,12 @@ export default function HaccpHome() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ background: '#f3f4f6' }}>
-                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb' }}>Data</th>
-                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb' }}>Período</th>
-                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb' }}>Equipamento</th>
-                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb' }}>Temp.</th>
-                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb' }}>Staff</th>
-                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb' }}>Obs.</th>
+                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Data</th>
+                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Período</th>
+                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Equipamento</th>
+                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Temp.</th>
+                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Staff</th>
+                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Obs.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1356,14 +1741,14 @@ export default function HaccpHome() {
                     const equip = equipamentos.find((e) => e.id === r.equipamento_id)
                     return (
                       <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                        <td style={{ padding: '8px 10px' }}>{r.data_registo}</td>
-                        <td style={{ padding: '8px 10px' }}>{r.periodo === 'manha' ? 'Manhã' : 'Tarde'}</td>
-                        <td style={{ padding: '8px 10px' }}>{equip?.nome || '—'}</td>
+                        <td style={{ padding: '8px 10px', color: '#111' }}>{r.data_registo}</td>
+                        <td style={{ padding: '8px 10px', color: '#111' }}>{r.periodo === 'manha' ? 'Manhã' : 'Tarde'}</td>
+                        <td style={{ padding: '8px 10px', color: '#111' }}>{equip?.nome || '—'}</td>
                         <td style={{ padding: '8px 10px', fontWeight: '600', color: r.conforme ? '#16a34a' : '#dc2626' }}>
                           {r.temperatura}°C {r.conforme ? '✓' : '⚠'}
                         </td>
-                        <td style={{ padding: '8px 10px' }}>{r.nome_staff}</td>
-                        <td style={{ padding: '8px 10px', color: '#6b7280' }}>{r.observacoes || '—'}</td>
+                        <td style={{ padding: '8px 10px', color: '#111' }}>{r.nome_staff}</td>
+                        <td style={{ padding: '8px 10px', color: '#374151' }}>{r.observacoes || '—'}</td>
                       </tr>
                     )
                   })}
@@ -1565,6 +1950,16 @@ export default function HaccpHome() {
                     placeholder="ex: Rua da Cozinha, 123, 4000-000 Porto"
                     style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
                 </div>
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#111' }}>
+                    <input type="checkbox" checked={formInstTemFabrico} onChange={(e) => setFormInstTemFabrico(e.target.checked)}
+                      style={{ width: '16px', height: '16px', accentColor: '#80c944', cursor: 'pointer' }} />
+                    Tem fabrico de produtos
+                  </label>
+                  <p style={{ fontSize: '11px', color: '#6b7280', margin: '4px 0 0 24px' }}>
+                    Lojas com fabrico mostram registos de Lavagem de hortofrutícolas e Confeção/Arrefecimento.
+                  </p>
+                </div>
                 <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                   <button onClick={guardarInstalacao} disabled={aGuardarInst}
                     style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
@@ -1583,7 +1978,12 @@ export default function HaccpHome() {
               {instalacoes.map((inst) => (
                 <div key={inst.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px 14px' }}>
                   <div>
-                    <p style={{ fontSize: '14px', fontWeight: '500', color: '#111', margin: 0 }}>{inst.nome}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <p style={{ fontSize: '14px', fontWeight: '500', color: '#111', margin: 0 }}>{inst.nome}</p>
+                      {inst.tem_fabrico && (
+                        <span style={{ background: '#fef3c7', color: '#92400e', fontSize: '10px', fontWeight: '600', padding: '2px 8px', borderRadius: '99px' }}>🏭 Fabrico</span>
+                      )}
+                    </div>
                     {inst.morada && <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0' }}>{inst.morada}</p>}
                   </div>
                   <div style={{ display: 'flex', gap: '6px' }}>
