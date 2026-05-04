@@ -47,7 +47,7 @@ type ComponenteIngrediente = {
   ingrediente_id: number
   quantidade: number | string
   unidade: string | null
-  ingredientes: { id: number; nome: string } | null
+  ingredientes: { id: number; nome: string; requer_desinfeccao?: boolean | null } | null
 }
 
 type TarefaPreparacao = {
@@ -92,6 +92,21 @@ type RegistoEmbalamento = {
   extras: boolean | null
   extrasPorTamanho: Record<number, number>
   etiquetasImpressas: boolean
+}
+
+type RegistoDesinfeccao = {
+  id?: string
+  quantidade_desinfectante_ml: number
+  litros_agua: number
+  tempo_minutos: number
+  concluido: boolean
+}
+
+const DEFAULT_DESINFECCAO: RegistoDesinfeccao = {
+  quantidade_desinfectante_ml: 30,
+  litros_agua: 6,
+  tempo_minutos: 5,
+  concluido: false,
 }
 
 type SecaoAtiva = 'preparacao' | 'confeccao' | 'finalizacao' | 'embalamento'
@@ -197,8 +212,36 @@ function SliderComBotoes({
   )
 }
 
+function SliderSimples({
+  valor,
+  min,
+  max,
+  step,
+  onChange,
+  formatarValor,
+}: {
+  valor: number
+  min: number
+  max: number
+  step: number
+  onChange: (v: number) => void
+  formatarValor: (v: number) => string
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <input type="range" min={min} max={max} step={step} value={valor}
+        onChange={e => onChange(parseFloat(e.target.value))}
+        style={{ flex: 1, accentColor: '#111827' }} />
+      <span style={{ fontSize: '15px', fontWeight: '600', minWidth: '80px', textAlign: 'right', color: '#111827' }}>
+        {formatarValor(valor)}
+      </span>
+    </div>
+  )
+}
+
 export default function Cozinha() {
   const router = useRouter()
+
   const [aCarregar, setACarregar] = useState(true)
   const [nomeUtilizador, setNomeUtilizador] = useState('')
   const [seccoes, setSeccoes] = useState<string[]>([])
@@ -219,6 +262,8 @@ export default function Cozinha() {
   const [tarefasFinalizacao, setTarefasFinalizacao] = useState<TarefaFinalizacao[]>([])
   const [registos, setRegistos] = useState<Record<string, Registo>>({})
   const [registosEmbalamento, setRegistosEmbalamento] = useState<Record<string, RegistoEmbalamento>>({})
+  const [registosDesinfeccao, setRegistosDesinfeccao] = useState<Record<number, RegistoDesinfeccao>>({})
+
 
   // Ref para evitar fetches sobrepostos quando o tablet volta a ficar visível
   const aRefazerFetch = useRef(false)
@@ -274,10 +319,26 @@ export default function Cozinha() {
       }
     }
 
+    const aplicarRegistoDesinfeccao = (r: any) => {
+      if (!r || r.producao_semanal_id !== producaoAtiva.id) return
+      setRegistosDesinfeccao(prev => ({
+        ...prev,
+        [Number(r.tarefa_preparacao_id)]: {
+          id: r.id,
+          quantidade_desinfectante_ml: Number(r.quantidade_desinfectante_ml),
+          litros_agua: Number(r.litros_agua),
+          tempo_minutos: Number(r.tempo_minutos),
+          concluido: r.concluido,
+        },
+      }))
+    }
+
     // Canal estável (sem Date.now() — antes era recriado a cada render e podia perder eventos)
     const channel = supabase.channel(`registos_cozinha_${producaoAtiva.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'registos_producao' },
         (payload) => aplicarRegisto(payload.new))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'registos_desinfeccao' },
+        (payload) => aplicarRegistoDesinfeccao(payload.new))
       .subscribe()
 
     // Re-fetch quando o tablet volta a ficar visível (acordou do sleep, voltou ao separador, etc.)
@@ -303,21 +364,37 @@ export default function Cozinha() {
 
   async function carregarRegistos(producaoId: number) {
     const { data: reg } = await supabase.from('registos_producao').select('*').eq('producao_semanal_id', producaoId)
-    if (!reg) return
-    const mapa: Record<string, Registo> = {}
-    const mapaEmb: Record<string, RegistoEmbalamento> = {}
-    reg.forEach((r: any) => {
-      if (r.setor === 'embalamento_grupo') {
-        const chave = `emb|${r.referencia_id}`
-        let extrasPorTamanho: Record<number, number> = {}
-        try { if (r.quantidade_extras) extrasPorTamanho = JSON.parse(r.quantidade_extras) } catch {}
-        mapaEmb[chave] = { id: r.id, concluido: r.concluido, extras: r.extras, extrasPorTamanho, etiquetasImpressas: r.observacoes === 'etiquetas_impressas' }
-      } else {
-        mapa[`${r.setor}|${r.referencia_id}`] = { id: r.id, concluido: r.concluido, quantidade_final: r.quantidade_final, temperatura_confeccao: r.temperatura_confeccao, temperatura_abatimento: r.temperatura_abatimento, tempo_arrefecimento: r.tempo_arrefecimento, extras: r.extras, quantidade_extras: r.quantidade_extras, impressao_etiqueta: r.impressao_etiqueta || false }
-      }
-    })
-    setRegistos(mapa)
-    setRegistosEmbalamento(mapaEmb)
+    if (reg) {
+      const mapa: Record<string, Registo> = {}
+      const mapaEmb: Record<string, RegistoEmbalamento> = {}
+      reg.forEach((r: any) => {
+        if (r.setor === 'embalamento_grupo') {
+          const chave = `emb|${r.referencia_id}`
+          let extrasPorTamanho: Record<number, number> = {}
+          try { if (r.quantidade_extras) extrasPorTamanho = JSON.parse(r.quantidade_extras) } catch {}
+          mapaEmb[chave] = { id: r.id, concluido: r.concluido, extras: r.extras, extrasPorTamanho, etiquetasImpressas: r.observacoes === 'etiquetas_impressas' }
+        } else {
+          mapa[`${r.setor}|${r.referencia_id}`] = { id: r.id, concluido: r.concluido, quantidade_final: r.quantidade_final, temperatura_confeccao: r.temperatura_confeccao, temperatura_abatimento: r.temperatura_abatimento, tempo_arrefecimento: r.tempo_arrefecimento, extras: r.extras, quantidade_extras: r.quantidade_extras, impressao_etiqueta: r.impressao_etiqueta || false }
+        }
+      })
+      setRegistos(mapa)
+      setRegistosEmbalamento(mapaEmb)
+    }
+
+    const { data: regDes } = await supabase.from('registos_desinfeccao').select('*').eq('producao_semanal_id', producaoId)
+    if (regDes) {
+      const mapaDes: Record<number, RegistoDesinfeccao> = {}
+      regDes.forEach((r: any) => {
+        mapaDes[Number(r.tarefa_preparacao_id)] = {
+          id: r.id,
+          quantidade_desinfectante_ml: Number(r.quantidade_desinfectante_ml),
+          litros_agua: Number(r.litros_agua),
+          tempo_minutos: Number(r.tempo_minutos),
+          concluido: r.concluido,
+        }
+      })
+      setRegistosDesinfeccao(mapaDes)
+    }
   }
 
   async function carregarDados(producaoId: number) {
@@ -338,7 +415,7 @@ export default function Cozinha() {
 
     const compIds = Array.from(new Set(pcLista.map(i => Number(i.componente_id))))
     const { data: ci } = await supabase.from('componente_ingredientes')
-      .select('id, componente_id, ingrediente_id, quantidade, unidade, ingredientes (id, nome)')
+      .select('id, componente_id, ingrediente_id, quantidade, unidade, ingredientes (id, nome, requer_desinfeccao)')
       .in('componente_id', compIds.length ? compIds : [-1])
     setComponentesIngredientes((ci || []) as ComponenteIngrediente[])
 
@@ -422,6 +499,32 @@ export default function Cozinha() {
     if (data) setRegistosEmbalamento(prev => ({ ...prev, [chaveGrupo]: { ...novoEstado, id: data.id } as RegistoEmbalamento }))
   }
 
+  async function guardarRegistoDesinfeccao(tarefaPreparacaoId: number, dados: Partial<RegistoDesinfeccao>) {
+    if (!producaoAtiva) return
+
+    const estadoAtual = registosDesinfeccao[tarefaPreparacaoId] || DEFAULT_DESINFECCAO
+    const novoEstado: RegistoDesinfeccao = { ...estadoAtual, ...dados }
+    setRegistosDesinfeccao(prev => ({ ...prev, [tarefaPreparacaoId]: novoEstado }))
+
+    const dadosDB = {
+      producao_semanal_id: producaoAtiva.id,
+      tarefa_preparacao_id: tarefaPreparacaoId,
+      quantidade_desinfectante_ml: novoEstado.quantidade_desinfectante_ml,
+      litros_agua: novoEstado.litros_agua,
+      tempo_minutos: novoEstado.tempo_minutos,
+      concluido: novoEstado.concluido,
+      atualizado_em: new Date().toISOString(),
+    }
+
+    const { data } = await supabase
+      .from('registos_desinfeccao')
+      .upsert(dadosDB, { onConflict: 'producao_semanal_id,tarefa_preparacao_id' })
+      .select()
+      .single()
+
+    if (data) setRegistosDesinfeccao(prev => ({ ...prev, [tarefaPreparacaoId]: { ...novoEstado, id: data.id } }))
+  }
+
   const PRINTER_URL = 'https://expansys-football-complement-numerical.trycloudflare.com/print'
 
   function gerarZPL(dados: {
@@ -437,16 +540,13 @@ export default function Cozinha() {
 ^LL406
 ^CI28
 ^LH0,0
-^CF0,38
-^FO20,20^FB570,2,4,L^FD${esc(dados.componenteDestino)}^FS
-^CF0,22
-^FO20,120^FB570,1,0,L^FD-> ${esc(dados.pratoDestino)}^FS
-^FO20,165^GB570,2,2^FS
+^CF0,52
+^FO20,20^FB570,2,4,L^FD${esc(dados.ingrediente)}^FS
+^CF0,30
+^FO20,150^FB570,1,0,L^FD${esc(dados.componenteDestino)}^FS
 ^CF0,24
-^FO20,185^FDIngrediente:^FS
-^FO230,185^FB360,1,0,L^FD${esc(dados.ingrediente)}^FS
-^FO20,225^FDQuantidade:^FS
-^FO230,225^FB360,1,0,L^FD${esc(dados.quantidade)}^FS
+^FO20,200^FB570,2,0,L^FD-> ${esc(dados.pratoDestino)} (${esc(dados.quantidade)})^FS
+^FO20,300^GB570,2,2^FS
 ^CF0,18
 ^FO20,370^FD${esc(dados.data)}^FS
 ^XZ`
@@ -463,26 +563,55 @@ export default function Cozinha() {
   onImprimiu: () => void
 ) {
   const zpl = gerarZPL(dados)
-
-  try {
-    const resposta = await fetch(PRINTER_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ zpl }),
-    })
-
-    if (!resposta.ok) {
-      throw new Error('Erro ao enviar etiqueta')
-    }
-
-    onImprimiu()
-  } catch (erro) {
-    console.error('Erro de impressão:', erro)
-    alert('Não consegui imprimir.\n\nVerifica:\n• PC ligado\n• servidor ativo\n• tablet na mesma rede')
-  }
+  await enviarZPL(zpl, onImprimiu)
 }
+
+  function gerarZPLConfeccao(dados: {
+    componente: string
+    pratosDestino: string
+    quantidadeFinal: string
+    data: string
+  }) {
+    const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
+    return `^XA
+^PW609
+^LL406
+^CI28
+^LH0,0
+^CF0,52
+^FO20,20^FB570,2,4,L^FD${esc(dados.componente)}^FS
+^CF0,22
+^FO20,150^FB570,2,0,L^FD${esc(dados.pratosDestino)}^FS
+^FO20,260^GB570,2,2^FS
+^CF0,30
+^FO20,280^FDQuantidade: ${esc(dados.quantidadeFinal)}^FS
+^CF0,18
+^FO20,370^FD${esc(dados.data)}^FS
+^XZ`
+  }
+
+  async function imprimirEtiquetaConfeccao(
+    dados: { componente: string; pratosDestino: string; quantidadeFinal: string; data: string },
+    onImprimiu: () => void
+  ) {
+    const zpl = gerarZPLConfeccao(dados)
+    await enviarZPL(zpl, onImprimiu)
+  }
+
+  async function enviarZPL(zpl: string, onImprimiu: () => void) {
+    try {
+      const resposta = await fetch(PRINTER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zpl }),
+      })
+      if (!resposta.ok) throw new Error('Erro ao enviar etiqueta')
+      onImprimiu()
+    } catch (erro) {
+      console.error('Erro de impressão:', erro)
+      alert('Não consegui imprimir.\n\nVerifica:\n• PC ligado\n• servidor ativo\n• tablet na mesma rede')
+    }
+  }
 
   function parseNum(v: any) {
     const n = parseFloat(String(v || '').replace(',', '.'))
@@ -523,7 +652,7 @@ export default function Cozinha() {
   function renderPreparacao() {
     const grupos: Record<string, {
       ingredienteNome: string
-      tarefas: { tarefaId: number; tarefa: string; observacoes: string | null; ordem: number; quantidade: number; unidade: string | null; componenteDestino: string; pratoDestino: string }[]
+      tarefas: { tarefaId: number; tarefa: string; observacoes: string | null; ordem: number; quantidade: number; unidade: string | null; componenteDestino: string; pratoDestino: string; requerDesinfeccao: boolean }[]
     }> = {}
 
     detalhes.forEach(item => {
@@ -538,12 +667,13 @@ export default function Cozinha() {
           const qtd = parseNum(ci.quantidade) * fatorUso(pc) * doses
           if (!qtd) return
           const nome = ci.ingredientes?.nome || 'Ingrediente'
+          const requerDesinfeccao = !!ci.ingredientes?.requer_desinfeccao
           const chave = `${Number(ci.ingrediente_id)}|${nome}`
           if (!grupos[chave]) grupos[chave] = { ingredienteNome: nome, tarefas: [] }
           tarefasCi.forEach(t => {
             const idx = grupos[chave].tarefas.findIndex(x => x.tarefaId === t.id)
             if (idx >= 0) grupos[chave].tarefas[idx].quantidade += qtd
-            else grupos[chave].tarefas.push({ tarefaId: t.id, tarefa: t.tarefa, observacoes: t.observacoes, ordem: Number(t.ordem), quantidade: qtd, unidade: ci.unidade, componenteDestino, pratoDestino })
+            else grupos[chave].tarefas.push({ tarefaId: t.id, tarefa: t.tarefa, observacoes: t.observacoes, ordem: Number(t.ordem), quantidade: qtd, unidade: ci.unidade, componenteDestino, pratoDestino, requerDesinfeccao })
           })
         })
       })
@@ -594,6 +724,8 @@ export default function Cozinha() {
                   )
                 }
 
+                const desinf = registosDesinfeccao[tarefa.tarefaId] || DEFAULT_DESINFECCAO
+
                 return (
                   <div key={tarefa.tarefaId} style={{ background: feita ? '#f0fdf4' : '#fff', border: `1px solid ${feita ? '#86efac' : '#e5e7eb'}`, borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <div>
@@ -610,12 +742,59 @@ export default function Cozinha() {
                       </button>
                     )}
                     {feita && !impressa && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {tarefa.requerDesinfeccao && (
+                          <div style={{ background: '#fff', border: '1px solid #e0e7ff', borderRadius: '10px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <p style={{ fontSize: '12px', fontWeight: '600', color: '#4338ca', textTransform: 'uppercase', letterSpacing: '0.5px', margin: 0 }}>
+                              Desinfeção
+                            </p>
+                            <div>
+                              <label style={estiloLabel}>Desinfectante (ml)</label>
+                              <SliderSimples
+                                valor={desinf.quantidade_desinfectante_ml}
+                                min={0}
+                                max={100}
+                                step={1}
+                                onChange={v => guardarRegistoDesinfeccao(tarefa.tarefaId, { quantidade_desinfectante_ml: Math.round(v) })}
+                                formatarValor={v => `${Math.round(v)} ml`}
+                              />
+                            </div>
+                            <div>
+                              <label style={estiloLabel}>Água (litros)</label>
+                              <SliderSimples
+                                valor={desinf.litros_agua}
+                                min={0}
+                                max={50}
+                                step={0.5}
+                                onChange={v => guardarRegistoDesinfeccao(tarefa.tarefaId, { litros_agua: Number(v.toFixed(1)) })}
+                                formatarValor={v => `${v.toFixed(1)} l`}
+                              />
+                            </div>
+                            <div>
+                              <label style={estiloLabel}>Tempo (minutos)</label>
+                              <SliderSimples
+                                valor={desinf.tempo_minutos}
+                                min={0}
+                                max={20}
+                                step={1}
+                                onChange={v => guardarRegistoDesinfeccao(tarefa.tarefaId, { tempo_minutos: Math.round(v) })}
+                                formatarValor={v => `${Math.round(v)} min`}
+                              />
+                            </div>
+                          </div>
+                        )}
                         <button
-                          onClick={() => imprimirEtiqueta(
-                            { componenteDestino: tarefa.componenteDestino, pratoDestino: tarefa.pratoDestino, ingrediente: grupo.ingredienteNome, quantidade: fmtQtd(tarefa.quantidade, tarefa.unidade), data: dataHoje() },
-                            () => guardarRegisto('preparacao', tarefa.tarefaId, { impressao_etiqueta: true })
-                          )}
+                          onClick={() => {
+                            imprimirEtiqueta(
+                              { componenteDestino: tarefa.componenteDestino, pratoDestino: tarefa.pratoDestino, ingrediente: grupo.ingredienteNome, quantidade: fmtQtd(tarefa.quantidade, tarefa.unidade), data: dataHoje() },
+                              () => {
+                                guardarRegisto('preparacao', tarefa.tarefaId, { impressao_etiqueta: true })
+                                if (tarefa.requerDesinfeccao) {
+                                  guardarRegistoDesinfeccao(tarefa.tarefaId, { concluido: true })
+                                }
+                              }
+                            )
+                          }}
                           style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', background: '#fff', color: '#374151', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
                           🖨 Imprimir etiqueta
                         </button>
@@ -638,9 +817,10 @@ export default function Cozinha() {
 
   // ── Confeção ─────────────────────────────────────────────────
   function renderConfeccao() {
-    const componentesMap: Record<string, { componenteId: number; componenteNome: string; quantidadeTotal: number; unidade: string | null; unidadeRendimento: string | null; tarefas: TarefaConfeccao[] }> = {}
+    const componentesMap: Record<string, { componenteId: number; componenteNome: string; quantidadeTotal: number; unidade: string | null; unidadeRendimento: string | null; tarefas: TarefaConfeccao[]; pratosDestino: Set<string> }> = {}
     detalhes.forEach(item => {
       const pratoId = Number(item.pratos?.id)
+      const pratoNome = item.pratos?.nome || 'Prato'
       const doses = Number(item.quantidade || 0)
       pratosComponentes.filter(pc => Number(pc.prato_id) === pratoId).forEach(pc => {
         const cId = Number(pc.componente_id)
@@ -649,8 +829,9 @@ export default function Cozinha() {
         const tarefasC = tarefasConfeccao.filter(t => Number(t.componente_id) === cId)
         if (!tarefasC.length) return
         const chave = String(cId)
-        if (!componentesMap[chave]) componentesMap[chave] = { componenteId: cId, componenteNome: cNome, quantidadeTotal: 0, unidade: pc.unidade, unidadeRendimento: pc.componentes?.unidade_rendimento || null, tarefas: tarefasC }
+        if (!componentesMap[chave]) componentesMap[chave] = { componenteId: cId, componenteNome: cNome, quantidadeTotal: 0, unidade: pc.unidade, unidadeRendimento: pc.componentes?.unidade_rendimento || null, tarefas: tarefasC, pratosDestino: new Set() }
         componentesMap[chave].quantidadeTotal += qtd
+        componentesMap[chave].pratosDestino.add(pratoNome)
       })
     })
 
@@ -660,11 +841,11 @@ export default function Cozinha() {
 
     const ativos = todosComponentes.filter(c => {
       const reg = registos[`confeccao|${c.componenteId}`]
-      return !(reg?.concluido)
+      return !(reg?.concluido && reg?.impressao_etiqueta)
     })
     const feitos = todosComponentes.filter(c => {
       const reg = registos[`confeccao|${c.componenteId}`]
-      return reg?.concluido
+      return reg?.concluido && reg?.impressao_etiqueta
     })
 
     return (
@@ -691,7 +872,7 @@ export default function Cozinha() {
             )}
             {ativos.map(comp => {
               const chave = `confeccao|${comp.componenteId}`
-              const reg = registos[chave] || { concluido: false }
+              const reg = registos[chave] || { concluido: false, impressao_etiqueta: false }
               const cfgSlider = configSliderUnidade(comp.unidadeRendimento)
               const qtdFinal = reg.quantidade_final ?? 0
               const tempConf = reg.temperatura_confeccao ?? 75
@@ -700,13 +881,46 @@ export default function Cozinha() {
               const confOk = tempConf >= 75
               const abatOk = tempAbat >= 2 && tempAbat <= 6
               const arrefOk = tempArref >= 20 && tempArref <= 120
-              const podeConcluir = qtdFinal > 0
+              const feito = reg.concluido || false
+              const impressa = reg.impressao_etiqueta || false
+              const podeImprimir = qtdFinal > 0
+              const pratosDestinoStr = Array.from(comp.pratosDestino).join(', ')
+
+              if (!feito) {
+                return (
+                  <div key={comp.componenteId} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div>
+                      <p style={{ fontSize: '17px', fontWeight: '500', color: '#111', margin: '0 0 2px' }}>{comp.componenteNome}</p>
+                      <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>{fmtQtd(comp.quantidadeTotal, comp.unidade)}</p>
+                      {pratosDestinoStr && (
+                        <p style={{ fontSize: '11px', color: '#9ca3af', margin: '4px 0 0' }}>→ {pratosDestinoStr}</p>
+                      )}
+                    </div>
+
+                    <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: '10px' }}>
+                      <p style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Tarefas</p>
+                      {comp.tarefas.sort((a, b) => a.ordem - b.ordem).map(t => (
+                        <p key={t.id} style={{ fontSize: '13px', color: '#374151', margin: '0 0 3px' }}>{t.ordem}. {t.tarefa}{t.observacoes ? ` — ${t.observacoes}` : ''}</p>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => guardarRegisto('confeccao', comp.componenteId, { concluido: true })}
+                      style={{ width: '100%', padding: '13px', borderRadius: '8px', border: 'none', background: '#80c944', color: '#fff', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>
+                      Feito ✓
+                    </button>
+                  </div>
+                )
+              }
 
               return (
-                <div key={comp.componenteId} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div key={comp.componenteId} style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div>
                     <p style={{ fontSize: '17px', fontWeight: '500', color: '#111', margin: '0 0 2px' }}>{comp.componenteNome}</p>
                     <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>{fmtQtd(comp.quantidadeTotal, comp.unidade)}</p>
+                    {pratosDestinoStr && (
+                      <p style={{ fontSize: '11px', color: '#9ca3af', margin: '4px 0 0' }}>→ {pratosDestinoStr}</p>
+                    )}
                   </div>
 
                   <div>
@@ -766,29 +980,30 @@ export default function Cozinha() {
                     />
                   </div>
 
-                  <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: '10px' }}>
-                    <p style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Tarefas</p>
-                    {comp.tarefas.sort((a, b) => a.ordem - b.ordem).map(t => (
-                      <p key={t.id} style={{ fontSize: '13px', color: '#374151', margin: '0 0 3px' }}>{t.ordem}. {t.tarefa}{t.observacoes ? ` — ${t.observacoes}` : ''}</p>
-                    ))}
-                  </div>
-
                   <button
-                    onClick={() => podeConcluir && guardarRegisto('confeccao', comp.componenteId, { concluido: true })}
-                    disabled={!podeConcluir}
-                    title={podeConcluir ? '' : 'Define a quantidade final antes de concluir'}
+                    onClick={() => podeImprimir && imprimirEtiquetaConfeccao(
+                      { componente: comp.componenteNome, pratosDestino: pratosDestinoStr, quantidadeFinal: cfgSlider.formatar(qtdFinal), data: dataHoje() },
+                      () => guardarRegisto('confeccao', comp.componenteId, { impressao_etiqueta: true })
+                    )}
+                    disabled={!podeImprimir}
+                    title={podeImprimir ? '' : 'Define a quantidade final antes de imprimir'}
                     style={{
                       width: '100%',
                       padding: '13px',
                       borderRadius: '8px',
-                      border: 'none',
-                      background: podeConcluir ? '#80c944' : '#e5e7eb',
-                      color: podeConcluir ? '#fff' : '#9ca3af',
+                      border: '1px solid ' + (podeImprimir ? '#d1d5db' : '#e5e7eb'),
+                      background: podeImprimir ? '#fff' : '#f3f4f6',
+                      color: podeImprimir ? '#374151' : '#9ca3af',
                       fontSize: '15px',
                       fontWeight: '500',
-                      cursor: podeConcluir ? 'pointer' : 'not-allowed'
+                      cursor: podeImprimir ? 'pointer' : 'not-allowed',
                     }}>
-                    {podeConcluir ? 'Feito ✓' : 'Define a quantidade final'}
+                    {podeImprimir ? '🖨 Imprimir etiqueta' : 'Define a quantidade final'}
+                  </button>
+
+                  <button onClick={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false, impressao_etiqueta: false })}
+                    style={{ width: '100%', padding: '8px', borderRadius: '8px', border: 'none', background: '#f3f4f6', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>
+                    Desfazer
                   </button>
                 </div>
               )
@@ -812,7 +1027,7 @@ export default function Cozinha() {
                 <PillConcluido
                   key={comp.componenteId}
                   label={label}
-                  onDesfazer={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false })}
+                  onDesfazer={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false, impressao_etiqueta: false })}
                 />
               )
             })}

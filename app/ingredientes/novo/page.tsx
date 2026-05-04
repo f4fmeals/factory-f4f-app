@@ -27,6 +27,7 @@ type Ingrediente = {
   referencia_fornecedor: string | null
   quantidade_embalagem: number | null
   unidade_embalagem: string | null
+  requer_desinfeccao: boolean | null
 }
 
 export default function NovoIngredientePage() {
@@ -40,6 +41,7 @@ export default function NovoIngredientePage() {
   const [referenciaFornecedor, setReferenciaFornecedor] = useState('')
   const [quantidadeEmbalagem, setQuantidadeEmbalagem] = useState('')
   const [unidadeEmbalagem, setUnidadeEmbalagem] = useState('kg')
+  const [requerDesinfeccao, setRequerDesinfeccao] = useState(false)
 
   const [pesquisa, setPesquisa] = useState('')
   const [ingredientesEncontrados, setIngredientesEncontrados] = useState<Ingrediente[]>([])
@@ -64,6 +66,12 @@ export default function NovoIngredientePage() {
     return () => clearTimeout(timeout)
   }, [pesquisa])
 
+  useEffect(() => {
+    if (categoria === 'hortofrutícolas') {
+      setRequerDesinfeccao(true)
+    }
+  }, [categoria])
+
   async function pesquisarIngredientes(textoPesquisa: string) {
     setAPesquisar(true)
 
@@ -79,7 +87,8 @@ export default function NovoIngredientePage() {
         nome_fornecedor,
         referencia_fornecedor,
         quantidade_embalagem,
-        unidade_embalagem
+        unidade_embalagem,
+        requer_desinfeccao
       `)
       .ilike('nome', `%${textoPesquisa}%`)
       .order('nome', { ascending: true })
@@ -115,6 +124,7 @@ export default function NovoIngredientePage() {
         : ''
     )
     setUnidadeEmbalagem(ingrediente.unidade_embalagem || 'kg')
+    setRequerDesinfeccao(ingrediente.requer_desinfeccao || false)
 
     setMensagem(
       `Dados de "${ingrediente.nome}" carregados no formulário. Indica agora o nome do novo ingrediente.`
@@ -133,6 +143,7 @@ export default function NovoIngredientePage() {
     setReferenciaFornecedor('')
     setQuantidadeEmbalagem('')
     setUnidadeEmbalagem('kg')
+    setRequerDesinfeccao(false)
   }
 
   function validarFormulario() {
@@ -230,6 +241,7 @@ export default function NovoIngredientePage() {
         referencia_fornecedor: referenciaFornecedorFinal,
         quantidade_embalagem: quantidadeEmbalagemFinal,
         unidade_embalagem: unidadeEmbalagemFinal,
+        requer_desinfeccao: requerDesinfeccao,
       },
     ])
 
@@ -445,6 +457,21 @@ export default function NovoIngredientePage() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="md:col-span-2 pt-2">
+              <label className="flex items-center gap-3 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={requerDesinfeccao}
+                  onChange={(e) => setRequerDesinfeccao(e.target.checked)}
+                  className="w-5 h-5"
+                />
+                Requer desinfeção
+                <span className="text-sm text-gray-500 font-normal">
+                  (auto-marcado para hortofrutícolas)
+                </span>
+              </label>
             </div>
           </div>
 
