@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
-type AbaHaccp = 'temperaturas' | 'limpeza' | 'lavagem_horto' | 'confeccao_arref'
+type AbaHaccp = 'temperaturas' | 'limpeza' | 'lavagem_horto' | 'confeccao_arref' | 'rececao'
 
 type Instalacao = {
   id: number
@@ -106,6 +106,30 @@ type RegistoConfeccao = {
   temperatura_abatimento: number | null
   tempo_arrefecimento: number | null
   nome_staff: string | null
+}
+
+type IngredienteSugestao = {
+  id: number
+  nome: string
+  categoria: string | null
+  nome_fornecedor: string | null
+}
+
+type RegistoRececao = {
+  id: number
+  instalacao_id: number
+  ingrediente_id: number
+  produto_nome: string
+  categoria: string | null
+  fornecedor_nome: string
+  data_registo: string
+  hora_registo: string
+  lote: string | null
+  temperatura_chegada: number
+  nome_staff: string
+  observacoes: string | null
+  user_id: string | null
+  criado_em: string
 }
 
 export default function HaccpHome() {
@@ -214,6 +238,25 @@ export default function HaccpHome() {
   const [filtroConfeccaoDataInicio, setFiltroConfeccaoDataInicio] = useState('')
   const [filtroConfeccaoDataFim, setFiltroConfeccaoDataFim] = useState('')
 
+  // --- RECEÇÃO DE MERCADORIAS ---
+  const [registosRececao, setRegistosRececao] = useState<RegistoRececao[]>([])
+  const [aCarregarRececao, setACarregarRececao] = useState(false)
+  const [filtroRececaoDataInicio, setFiltroRececaoDataInicio] = useState('')
+  const [filtroRececaoDataFim, setFiltroRececaoDataFim] = useState('')
+  const [filtroRececaoFornecedor, setFiltroRececaoFornecedor] = useState('')
+
+  const [modalRececaoAberto, setModalRececaoAberto] = useState(false)
+  const [registoRececaoEmEdicao, setRegistoRececaoEmEdicao] = useState<RegistoRececao | null>(null)
+  const [pesquisaIngrediente, setPesquisaIngrediente] = useState('')
+  const [sugestoesIngredientes, setSugestoesIngredientes] = useState<IngredienteSugestao[]>([])
+  const [aCarregarSugestoes, setACarregarSugestoes] = useState(false)
+  const [ingredienteSelecionado, setIngredienteSelecionado] = useState<IngredienteSugestao | null>(null)
+  const [formRececaoLote, setFormRececaoLote] = useState('')
+  const [formRececaoTemp, setFormRececaoTemp] = useState(4)
+  const [formRececaoStaff, setFormRececaoStaff] = useState('')
+  const [formRececaoObs, setFormRececaoObs] = useState('')
+  const [aGuardarRececao, setAGuardarRececao] = useState(false)
+
   // ===== Inicialização =====
   useEffect(() => {
     async function verificarAcesso() {
@@ -245,6 +288,7 @@ export default function HaccpHome() {
       setRegistosLimpezaHoje([]); setRegistosLimpezaTarefas([])
       setStaff([])
       setRegistosLavagem([]); setRegistosConfeccao([])
+      setRegistosRececao([])
     }
   }, [instalacaoSel])
 
@@ -264,13 +308,20 @@ export default function HaccpHome() {
       setFiltroConfeccaoDataInicio(data7); setFiltroConfeccaoDataFim(hoje)
       carregarRegistosConfeccao(data7, hoje)
     }
+    if (abaAtiva === 'rececao' && registosRececao.length === 0 && !aCarregarRececao) {
+      const hoje = obterDataHoje()
+      const ha7 = new Date(); ha7.setDate(ha7.getDate() - 7)
+      const data7 = `${ha7.getFullYear()}-${String(ha7.getMonth() + 1).padStart(2, '0')}-${String(ha7.getDate()).padStart(2, '0')}`
+      setFiltroRececaoDataInicio(data7); setFiltroRececaoDataFim(hoje)
+      carregarRegistosRececao(data7, hoje)
+    }
   }, [abaAtiva, instalacaoSel])
 
   useEffect(() => {
-    const bloquear = modalRegistoAberto || modalHistoricoAberto || gestaoInstalacoesAberta || modalLimpezaAberto || modalHistoricoLimpezaAberto
+    const bloquear = modalRegistoAberto || modalHistoricoAberto || gestaoInstalacoesAberta || modalLimpezaAberto || modalHistoricoLimpezaAberto || modalRececaoAberto
     document.body.style.overflow = bloquear ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [modalRegistoAberto, modalHistoricoAberto, gestaoInstalacoesAberta, modalLimpezaAberto, modalHistoricoLimpezaAberto])
+  }, [modalRegistoAberto, modalHistoricoAberto, gestaoInstalacoesAberta, modalLimpezaAberto, modalHistoricoLimpezaAberto, modalRececaoAberto])
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -964,6 +1015,142 @@ export default function HaccpHome() {
     setACarregarConfeccao(false)
   }
 
+  // ===== RECEÇÃO DE MERCADORIAS =====
+  async function carregarRegistosRececao(dataInicio: string, dataFim: string) {
+    if (!instalacaoSel) return
+    setACarregarRececao(true)
+    const { data, error } = await supabase
+      .from('haccp_rececoes_mercadoria')
+      .select('*')
+      .eq('instalacao_id', instalacaoSel.id)
+      .gte('data_registo', dataInicio)
+      .lte('data_registo', dataFim)
+      .order('data_registo', { ascending: false })
+      .order('hora_registo', { ascending: false })
+    if (!error) setRegistosRececao((data as RegistoRececao[]) || [])
+    setACarregarRececao(false)
+  }
+
+  async function pesquisarIngredientes(texto: string) {
+    if (texto.trim().length < 2) {
+      setSugestoesIngredientes([])
+      return
+    }
+    setACarregarSugestoes(true)
+    const { data, error } = await supabase
+      .from('ingredientes')
+      .select('id, nome, categoria, nome_fornecedor')
+      .ilike('nome', `%${texto.trim()}%`)
+      .order('nome', { ascending: true })
+      .limit(10)
+    if (!error) setSugestoesIngredientes((data as IngredienteSugestao[]) || [])
+    setACarregarSugestoes(false)
+  }
+
+  function abrirModalNovaRececao() {
+    setRegistoRececaoEmEdicao(null)
+    setIngredienteSelecionado(null)
+    setPesquisaIngrediente('')
+    setSugestoesIngredientes([])
+    setFormRececaoLote('')
+    setFormRececaoTemp(4)
+    setFormRececaoStaff('')
+    setFormRececaoObs('')
+    setModalRececaoAberto(true)
+  }
+
+  function abrirModalEditarRececao(reg: RegistoRececao) {
+    setRegistoRececaoEmEdicao(reg)
+    setIngredienteSelecionado({
+      id: reg.ingrediente_id,
+      nome: reg.produto_nome,
+      categoria: reg.categoria,
+      nome_fornecedor: reg.fornecedor_nome,
+    })
+    setPesquisaIngrediente('')
+    setSugestoesIngredientes([])
+    setFormRececaoLote(reg.lote || '')
+    setFormRececaoTemp(Number(reg.temperatura_chegada))
+    setFormRececaoStaff(reg.nome_staff)
+    setFormRececaoObs(reg.observacoes || '')
+    setModalRececaoAberto(true)
+  }
+
+  function fecharModalRececao() {
+    setModalRececaoAberto(false)
+    setRegistoRececaoEmEdicao(null)
+    setIngredienteSelecionado(null)
+  }
+
+  function selecionarIngrediente(ing: IngredienteSugestao) {
+    setIngredienteSelecionado(ing)
+    setPesquisaIngrediente('')
+    setSugestoesIngredientes([])
+  }
+
+  async function guardarRegistoRececao() {
+    if (!instalacaoSel) return
+    if (!ingredienteSelecionado) { alert('Seleciona um produto.'); return }
+    if (!ingredienteSelecionado.nome_fornecedor) {
+      alert('Este produto não tem fornecedor cadastrado. Atualiza o ingrediente antes de registar a receção.')
+      return
+    }
+    const staffNome = formRececaoStaff.trim()
+    if (!staffNome) { alert('Seleciona o funcionário.'); return }
+
+    setAGuardarRececao(true)
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (registoRececaoEmEdicao) {
+      const podeEditar = ehGestor || registoRececaoEmEdicao.user_id === user?.id
+      if (!podeEditar) {
+        alert('Não tens permissão para editar este registo.')
+        setAGuardarRececao(false); return
+      }
+      const { error } = await supabase
+        .from('haccp_rececoes_mercadoria')
+        .update({
+          ingrediente_id: ingredienteSelecionado.id,
+          produto_nome: ingredienteSelecionado.nome,
+          categoria: ingredienteSelecionado.categoria,
+          fornecedor_nome: ingredienteSelecionado.nome_fornecedor,
+          lote: formRececaoLote.trim() || null,
+          temperatura_chegada: formRececaoTemp,
+          nome_staff: staffNome,
+          observacoes: formRececaoObs.trim() || null,
+        })
+        .eq('id', registoRececaoEmEdicao.id)
+      if (error) { alert('Erro ao atualizar o registo.'); setAGuardarRececao(false); return }
+    } else {
+      const { error } = await supabase.from('haccp_rececoes_mercadoria').insert([{
+        instalacao_id: instalacaoSel.id,
+        ingrediente_id: ingredienteSelecionado.id,
+        produto_nome: ingredienteSelecionado.nome,
+        categoria: ingredienteSelecionado.categoria,
+        fornecedor_nome: ingredienteSelecionado.nome_fornecedor,
+        data_registo: obterDataHoje(),
+        hora_registo: obterHoraAgora(),
+        lote: formRececaoLote.trim() || null,
+        temperatura_chegada: formRececaoTemp,
+        nome_staff: staffNome,
+        observacoes: formRececaoObs.trim() || null,
+        user_id: user?.id || null,
+      }])
+      if (error) { alert('Erro ao guardar o registo.'); setAGuardarRececao(false); return }
+    }
+    await carregarRegistosRececao(filtroRececaoDataInicio, filtroRececaoDataFim)
+    fecharModalRececao()
+    setAGuardarRececao(false)
+  }
+
+  async function apagarRegistoRececao(reg: RegistoRececao) {
+    if (!ehGestor) return
+    if (!window.confirm(`Apagar o registo de receção de "${reg.produto_nome}" (${reg.data_registo})?`)) return
+    const { error } = await supabase.from('haccp_rececoes_mercadoria').delete().eq('id', reg.id)
+    if (error) { alert('Erro ao apagar o registo.'); return }
+    await carregarRegistosRececao(filtroRececaoDataInicio, filtroRececaoDataFim)
+  }
+
   // ===== RENDER =====
   if (aVerificar) {
     return (
@@ -1066,6 +1253,7 @@ export default function HaccpHome() {
           {([
             { id: 'temperaturas', label: '🌡️ Temperaturas de frigoríficos', soFabrico: false },
             { id: 'limpeza', label: '🧽 Registos de limpeza', soFabrico: false },
+            { id: 'rececao', label: '📦 Receção de mercadorias', soFabrico: false },
             { id: 'lavagem_horto', label: '🥬 Lavagem de hortofrutícolas', soFabrico: true },
             { id: 'confeccao_arref', label: '🔥 Confeção e arrefecimento', soFabrico: true },
           ] as { id: AbaHaccp; label: string; soFabrico: boolean }[])
@@ -1080,6 +1268,7 @@ export default function HaccpHome() {
 
         {abaAtiva === 'temperaturas' && renderAbaTemperaturas()}
         {abaAtiva === 'limpeza' && renderAbaLimpeza()}
+        {abaAtiva === 'rececao' && renderAbaRececao()}
         {abaAtiva === 'lavagem_horto' && renderAbaLavagemHorto()}
         {abaAtiva === 'confeccao_arref' && renderAbaConfeccaoArref()}
 
@@ -1091,8 +1280,238 @@ export default function HaccpHome() {
       {ehGestor && renderModalGestaoInstalacoes()}
       {renderModalLimpeza()}
       {renderModalHistoricoLimpeza()}
+      {renderModalRececao()}
     </div>
   )
+
+  function renderAbaRececao() {
+    const fornecedoresUnicos = Array.from(new Set(registosRececao.map((r) => r.fornecedor_nome))).sort()
+    const registosFiltrados = filtroRececaoFornecedor
+      ? registosRececao.filter((r) => r.fornecedor_nome === filtroRececaoFornecedor)
+      : registosRececao
+
+    return (
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+          <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>📦 Receção de mercadorias</p>
+          <button onClick={abrirModalNovaRececao}
+            style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>
+            + Nova receção
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>De</label>
+            <input type="date" value={filtroRececaoDataInicio} onChange={(e) => setFiltroRececaoDataInicio(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Até</label>
+            <input type="date" value={filtroRececaoDataFim} onChange={(e) => setFiltroRececaoDataFim(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Fornecedor</label>
+            <select value={filtroRececaoFornecedor} onChange={(e) => setFiltroRececaoFornecedor(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff', minWidth: '180px' }}>
+              <option value="">— Todos —</option>
+              {fornecedoresUnicos.map((f) => (
+                <option key={f} value={f}>{f}</option>
+              ))}
+            </select>
+          </div>
+          <button onClick={() => carregarRegistosRececao(filtroRececaoDataInicio, filtroRececaoDataFim)}
+            style={{ background: '#374151', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Aplicar</button>
+        </div>
+
+        {aCarregarRececao ? (
+          <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
+        ) : registosFiltrados.length === 0 ? (
+          <p style={{ color: '#6b7280', fontSize: '13px' }}>Sem registos de receção no período selecionado.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ background: '#f3f4f6' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Data/Hora</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Produto</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Categoria</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Fornecedor</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Lote</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Temp.</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Receptor</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Obs.</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {registosFiltrados.map((r) => {
+                  const dataHora = `${r.data_registo} ${formatarHora(r.hora_registo)}`
+                  return (
+                    <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '8px 10px', color: '#111' }}>{dataHora}</td>
+                      <td style={{ padding: '8px 10px', color: '#111', fontWeight: '500' }}>{r.produto_nome}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.categoria || '—'}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.fornecedor_nome}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.lote || '—'}</td>
+                      <td style={{ padding: '8px 10px', fontWeight: '600', color: '#111' }}>{Number(r.temperatura_chegada).toFixed(1)}°C</td>
+                      <td style={{ padding: '8px 10px', color: '#111' }}>{r.nome_staff}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.observacoes || '—'}</td>
+                      <td style={{ padding: '8px 10px' }}>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button onClick={() => abrirModalEditarRececao(r)}
+                            style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
+                          {ehGestor && (
+                            <button onClick={() => apagarRegistoRececao(r)}
+                              style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function renderModalRececao() {
+    if (!modalRececaoAberto) return null
+    const semFornecedor = !!ingredienteSelecionado && !ingredienteSelecionado.nome_fornecedor
+    return (
+      <div onClick={(e) => { if (e.target === e.currentTarget) fecharModalRececao() }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
+        <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '520px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+            <div>
+              <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: '0 0 2px' }}>
+                {registoRececaoEmEdicao ? 'Editar receção' : 'Nova receção de mercadoria'}
+              </p>
+              <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>{instalacaoSel?.nome} · {obterDataHoje()}</p>
+            </div>
+            <button onClick={fecharModalRececao} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕</button>
+          </div>
+
+          {/* Pesquisa de produto */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Produto *</label>
+            {ingredienteSelecionado ? (
+              <div style={{ border: semFornecedor ? '1px solid #fcd34d' : '1px solid #80c944', borderRadius: '8px', padding: '12px', background: semFornecedor ? '#fffbeb' : '#f0fdf4' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 4px' }}>{ingredienteSelecionado.nome}</p>
+                    <p style={{ fontSize: '12px', color: '#374151', margin: 0 }}>
+                      Categoria: <strong>{ingredienteSelecionado.categoria || '—'}</strong>
+                    </p>
+                    <p style={{ fontSize: '12px', color: semFornecedor ? '#92400e' : '#374151', margin: '2px 0 0' }}>
+                      Fornecedor: <strong>{ingredienteSelecionado.nome_fornecedor || 'Sem fornecedor cadastrado'}</strong>
+                    </p>
+                  </div>
+                  <button onClick={() => { setIngredienteSelecionado(null); setPesquisaIngrediente(''); }}
+                    style={{ background: 'transparent', border: 'none', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>Trocar</button>
+                </div>
+                {semFornecedor && (
+                  <p style={{ fontSize: '11px', color: '#92400e', margin: '8px 0 0', fontWeight: '500' }}>
+                    ⚠ Este produto não tem fornecedor cadastrado. Atualiza o ingrediente antes de registar a receção.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <>
+                <input type="text" value={pesquisaIngrediente}
+                  onChange={(e) => { setPesquisaIngrediente(e.target.value); pesquisarIngredientes(e.target.value) }}
+                  placeholder="Pesquisa por nome (mín. 2 caracteres)..."
+                  style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                {aCarregarSugestoes && <p style={{ fontSize: '11px', color: '#6b7280', margin: '4px 0 0' }}>A pesquisar...</p>}
+                {sugestoesIngredientes.length > 0 && (
+                  <div style={{ border: '1px solid #e5e7eb', borderRadius: '6px', marginTop: '6px', maxHeight: '240px', overflowY: 'auto' }}>
+                    {sugestoesIngredientes.map((ing) => (
+                      <button key={ing.id} onClick={() => selecionarIngrediente(ing)}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', background: '#fff', border: 'none', borderBottom: '1px solid #f3f4f6', padding: '8px 12px', cursor: 'pointer' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}>
+                        <p style={{ fontSize: '13px', fontWeight: '500', color: '#111', margin: 0 }}>{ing.nome}</p>
+                        <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0' }}>
+                          {ing.categoria || 'sem categoria'} · {ing.nome_fornecedor || 'sem fornecedor'}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {pesquisaIngrediente.trim().length >= 2 && !aCarregarSugestoes && sugestoesIngredientes.length === 0 && (
+                  <p style={{ fontSize: '12px', color: '#9ca3af', margin: '6px 0 0' }}>Nenhum produto encontrado.</p>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Lote */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Lote (opcional)</label>
+            <input type="text" value={formRececaoLote} onChange={(e) => setFormRececaoLote(e.target.value)}
+              placeholder="ex: L20260505-A"
+              style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+          </div>
+
+          {/* Temperatura */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '8px' }}>Temperatura de chegada</label>
+            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '36px', fontWeight: '700', color: '#111' }}>{formRececaoTemp}°C</span>
+            </div>
+            <input type="range" min={-25} max={25} step={0.5} value={formRececaoTemp}
+              onChange={(e) => setFormRececaoTemp(Number(e.target.value))}
+              style={{ width: '100%', accentColor: '#80c944' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
+              <span>-25°C</span><span>0°C</span><span>+25°C</span>
+            </div>
+          </div>
+
+          {/* Funcionário */}
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Receptor *</label>
+            {staff.length === 0 ? (
+              <div style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', color: '#92400e' }}>
+                Ainda não há funcionários nesta loja. {ehGestor ? 'Adiciona-os na secção "Funcionários" abaixo.' : 'Pede a um gestor para os adicionar.'}
+              </div>
+            ) : (
+              <select value={formRececaoStaff} onChange={(e) => setFormRececaoStaff(e.target.value)}
+                style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
+                <option value="">— Seleciona quem recebeu —</option>
+                {staff.map((s) => (
+                  <option key={s.id} value={s.nome}>{s.nome}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Observações */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Observações (opcional)</label>
+            <textarea value={formRececaoObs} onChange={(e) => setFormRececaoObs(e.target.value)} rows={2}
+              style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff', resize: 'vertical' }} />
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={guardarRegistoRececao}
+              disabled={aGuardarRececao || !ingredienteSelecionado || semFornecedor || staff.length === 0}
+              style={{
+                background: (!ingredienteSelecionado || semFornecedor || staff.length === 0) ? '#d1d5db' : '#80c944',
+                color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500',
+                cursor: (!ingredienteSelecionado || semFornecedor || staff.length === 0) ? 'not-allowed' : 'pointer'
+              }}>
+              {aGuardarRececao ? 'A guardar...' : (registoRececaoEmEdicao ? 'Atualizar' : 'Guardar registo')}
+            </button>
+            <button onClick={fecharModalRececao} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // ===== RENDERS =====
 
