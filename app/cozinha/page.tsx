@@ -1416,28 +1416,42 @@ export default function Cozinha() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {gruposDaCat.map(grupo => {
+        {(() => {
+          // Separar grupos: ativos vs concluídos (colapsados em pills)
+          const gruposAtivos: typeof gruposDaCat = []
+          const pillsConcluidos: { chaveGrupo: string; referenciaId: number; pratoNome: string; label: string }[] = []
+          gruposDaCat.forEach(grupo => {
             const referenciaId = refIdGrupo(grupo.itens)
             const chaveGrupo = `emb|${referenciaId}`
-            const reg = registosEmbalamento[chaveGrupo] || { concluido: false, extras: null, extrasPorTamanho: {}, etiquetasImpressas: false }
-            const feito = reg.concluido || false
-            const extrasRespondido = reg.extras !== null && reg.extras !== undefined
-            const temExtras = reg.extras === true
-            const colapsado = feito && extrasRespondido
-            const cores = coresCategoria(grupo.categoria)
-
-            if (colapsado) {
-              return (
-                <PillConcluido
-                  key={grupo.pratoNome}
-                  label={`${grupo.pratoNome}${reg.extras === true ? ` · Extras: ${grupo.itens.map(i => `${i.pratos?.tamanho?.toUpperCase()} ${reg.extrasPorTamanho?.[Number(i.pratos?.id)] ?? 0}`).join(' ')}` : ' · Sem extras'}`}
-                  onDesfazer={() => guardarRegistoEmbalamento(chaveGrupo, referenciaId, { concluido: false })}
-                />
-              )
+            const reg = registosEmbalamento[chaveGrupo]
+            const feito = reg?.concluido || false
+            const extrasRespondido = reg?.extras !== null && reg?.extras !== undefined
+            if (feito && extrasRespondido) {
+              const label = `${grupo.pratoNome}${reg?.extras === true ? ` · Extras: ${grupo.itens.map(i => `${i.pratos?.tamanho?.toUpperCase()} ${reg.extrasPorTamanho?.[Number(i.pratos?.id)] ?? 0}`).join(' ')}` : ' · Sem extras'}`
+              pillsConcluidos.push({ chaveGrupo, referenciaId, pratoNome: grupo.pratoNome, label })
+            } else {
+              gruposAtivos.push(grupo)
             }
+          })
 
-            return (
+          return (
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 200px', gap: '20px', alignItems: 'start' }}>
+              {/* Coluna principal: pratos ativos */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {gruposAtivos.length === 0 && (
+                  <p style={{ fontSize: '14px', color: '#6b7280', textAlign: 'center', padding: '40px 0' }}>
+                    {gruposDaCat.length === 0 ? 'Nenhum prato encontrado.' : 'Todos os pratos foram concluídos.'}
+                  </p>
+                )}
+                {gruposAtivos.map(grupo => {
+                  const referenciaId = refIdGrupo(grupo.itens)
+                  const chaveGrupo = `emb|${referenciaId}`
+                  const reg = registosEmbalamento[chaveGrupo] || { concluido: false, extras: null, extrasPorTamanho: {}, etiquetasImpressas: false }
+                  const feito = reg.concluido || false
+                  const temExtras = reg.extras === true
+                  const cores = coresCategoria(grupo.categoria)
+
+                  return (
               <div key={grupo.pratoNome} style={{ background: feito ? '#f0fdf4' : '#fff', border: `1px solid ${feito ? '#86efac' : '#e5e7eb'}`, borderRadius: '12px', padding: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                   <div>
@@ -1498,7 +1512,26 @@ export default function Cozinha() {
               </div>
             )
           })}
-        </div>
+              </div>
+
+              {/* Coluna lateral: pratos concluídos como pills */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {pillsConcluidos.length > 0 && (
+                  <p style={{ fontSize: '11px', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 4px' }}>
+                    Concluídos ({pillsConcluidos.length})
+                  </p>
+                )}
+                {pillsConcluidos.map(pill => (
+                  <PillConcluido
+                    key={pill.pratoNome}
+                    label={pill.label}
+                    onDesfazer={() => guardarRegistoEmbalamento(pill.chaveGrupo, pill.referenciaId, { concluido: false })}
+                  />
+                ))}
+              </div>
+            </div>
+          )
+        })()}
       </div>
     )
   }
