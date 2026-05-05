@@ -469,10 +469,11 @@ export default function Home() {
     const { data, error } = await supabase.from('producoes_semanais').select('*').order('id', { ascending: false })
     if (!error) {
       setProducoes((data as ProducaoSemanal[]) || [])
-      const { data: itensData } = await supabase.from('producoes_semanais_itens').select('producao_semanal_id, pratos (nome, categoria_prato)')
+      const { data: itensData } = await supabase.from('producoes_semanais_itens').select('producao_semanal_id, quantidade, pratos (nome, categoria_prato)')
       if (itensData) {
         const resumo: Record<number, Record<string, number>> = {}
         const porProducao: Record<number, Record<string, string>> = {}
+        const totaisPorProducao: Record<number, number> = {}
         ;(itensData as any[]).forEach((item) => {
           const pid = Number(item.producao_semanal_id)
           const nome = item.pratos?.nome || 'Sem nome'
@@ -480,10 +481,12 @@ export default function Home() {
           const chave = nome.trim().toLowerCase()
           if (!porProducao[pid]) porProducao[pid] = {}
           if (!porProducao[pid][chave]) porProducao[pid][chave] = categoria
+          totaisPorProducao[pid] = (totaisPorProducao[pid] || 0) + Number(item.quantidade || 0)
         })
         Object.entries(porProducao).forEach(([pid, pratos]) => {
           resumo[Number(pid)] = {}
           Object.values(pratos).forEach((categoria) => { resumo[Number(pid)][categoria] = (resumo[Number(pid)][categoria] || 0) + 1 })
+          resumo[Number(pid)].__total__ = totaisPorProducao[Number(pid)] || 0
         })
         setResumoProducoes(resumo)
       }
@@ -1226,9 +1229,14 @@ export default function Home() {
                   {producaoEmEdicaoId !== p.id && (
                     <p style={{ fontSize: '12px', color: '#6b7280', margin: '0' }}>{p.data_inicio}</p>
                   )}
-                  {resumoProducoes[p.id] && Object.keys(resumoProducoes[p.id]).length > 0 && (
+                  {producaoEmEdicaoId !== p.id && resumoProducoes[p.id]?.__total__ > 0 && (
+                    <p style={{ fontSize: '11px', color: '#9ca3af', margin: '2px 0 0' }}>
+                      {resumoProducoes[p.id].__total__} doses no total
+                    </p>
+                  )}
+                  {resumoProducoes[p.id] && Object.keys(resumoProducoes[p.id]).filter((c) => c !== '__total__').length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
-                      {Object.entries(resumoProducoes[p.id]).sort((a, b) => a[0].localeCompare(b[0])).map(([categoria, count]) => {
+                      {Object.entries(resumoProducoes[p.id]).filter(([categoria]) => categoria !== '__total__').sort((a, b) => a[0].localeCompare(b[0])).map(([categoria, count]) => {
                         const cores = obterCoresCategoria(categoria)
                         return (
                           <span key={categoria} style={{ background: cores.bg, color: cores.textoPrincipal, fontSize: '11px', padding: '2px 8px', borderRadius: '99px', fontWeight: '500' }}>
