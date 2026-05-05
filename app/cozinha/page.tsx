@@ -621,6 +621,37 @@ export default function Cozinha() {
     await enviarZPL(zpl, onImprimiu)
   }
 
+  function gerarZPLFinalizacao(dados: {
+    componente: string
+    pratoDestino: string
+    data: string
+  }) {
+    const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
+    return `^XA
+^PW609
+^LL406
+^CI28
+^LH0,0
+^CF0,52
+^FO20,20^FB570,2,4,L^FD${esc(dados.componente)}^FS
+^CF0,30
+^FO20,160^FB570,2,0,L^FD${esc(dados.pratoDestino)}^FS
+^FO20,270^GB570,2,2^FS
+^CF0,28
+^FO20,290^FD(Produto Finalizado)^FS
+^CF0,18
+^FO20,370^FD${esc(dados.data)}^FS
+^XZ`
+  }
+
+  async function imprimirEtiquetaFinalizacao(
+    dados: { componente: string; pratoDestino: string; data: string },
+    onImprimiu: () => void
+  ) {
+    const zpl = gerarZPLFinalizacao(dados)
+    await enviarZPL(zpl, onImprimiu)
+  }
+
   async function enviarZPL(zpl: string, onImprimiu: () => void) {
     try {
       const resposta = await fetch(PRINTER_URL, {
@@ -706,6 +737,28 @@ export default function Cozinha() {
       .filter(g => g.ingredienteNome.toLowerCase().includes(pesquisaPreparacao.toLowerCase()))
       .sort((a, b) => a.ingredienteNome.localeCompare(b.ingredienteNome))
 
+    // Construir lista plana de pills concluídos (todos os grupos)
+    const pillsConcluidos: { tarefaId: number; label: string }[] = []
+    gruposFiltrados.forEach(grupo => {
+      grupo.tarefas.forEach(tarefa => {
+        const reg = registos[`preparacao|${tarefa.tarefaId}`]
+        if (reg?.concluido && reg?.impressao_etiqueta) {
+          pillsConcluidos.push({ tarefaId: tarefa.tarefaId, label: tarefa.tarefa })
+        }
+      })
+    })
+
+    // Filtrar grupos para mostrar apenas os que têm tarefas ativas
+    const gruposAtivos = gruposFiltrados
+      .map(grupo => ({
+        ...grupo,
+        tarefas: grupo.tarefas.filter(tarefa => {
+          const reg = registos[`preparacao|${tarefa.tarefaId}`]
+          return !(reg?.concluido && reg?.impressao_etiqueta)
+        })
+      }))
+      .filter(grupo => grupo.tarefas.length > 0)
+
     return (
       <div>
         <div style={{ position: 'sticky', top: '97px', zIndex: 9, background: '#f9fafb', paddingBottom: '10px', borderBottom: '1px solid #e5e7eb', marginBottom: '14px' }}>
@@ -718,140 +771,147 @@ export default function Cozinha() {
           />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {gruposFiltrados.length === 0 && (
-          <p style={{ fontSize: '14px', color: '#6b7280', textAlign: 'center', padding: '40px 0' }}>
-            Nenhum ingrediente encontrado.
-          </p>
-        )}
-        {gruposFiltrados.map(grupo => (
-          <div key={grupo.ingredienteNome}>
-            <p style={{ fontSize: '13px', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #e5e7eb' }}>
-              {grupo.ingredienteNome}
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-              {grupo.tarefas.sort((a, b) => a.ordem - b.ordem).map(tarefa => {
-                const chave = `preparacao|${tarefa.tarefaId}`
-                const reg = registos[chave] || { concluido: false, impressao_etiqueta: false }
-                const feita = reg.concluido || false
-                const impressa = reg.impressao_etiqueta || false
-                const colapsado = feita && impressa
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: '20px', alignItems: 'start' }}>
+          {/* Coluna principal: ingredientes ativos */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {gruposAtivos.length === 0 && (
+              <p style={{ fontSize: '14px', color: '#6b7280', textAlign: 'center', padding: '40px 0' }}>
+                {gruposFiltrados.length === 0 ? 'Nenhum ingrediente encontrado.' : 'Todas as tarefas foram concluídas.'}
+              </p>
+            )}
+            {gruposAtivos.map(grupo => (
+              <div key={grupo.ingredienteNome}>
+                <p style={{ fontSize: '13px', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #e5e7eb' }}>
+                  {grupo.ingredienteNome}
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                  {grupo.tarefas.sort((a, b) => a.ordem - b.ordem).map(tarefa => {
+                    const chave = `preparacao|${tarefa.tarefaId}`
+                    const reg = registos[chave] || { concluido: false, impressao_etiqueta: false }
+                    const feita = reg.concluido || false
+                    const impressa = reg.impressao_etiqueta || false
+                    const desinf = registosDesinfeccao[tarefa.tarefaId] || DEFAULT_DESINFECCAO
 
-                if (colapsado) {
-                  return (
-                    <PillConcluido
-                      key={tarefa.tarefaId}
-                      label={tarefa.tarefa}
-                      onDesfazer={() => guardarRegisto('preparacao', tarefa.tarefaId, { concluido: false, impressao_etiqueta: false })}
-                    />
-                  )
-                }
-
-                const desinf = registosDesinfeccao[tarefa.tarefaId] || DEFAULT_DESINFECCAO
-
-                return (
-                  <div key={tarefa.tarefaId} style={{ background: feita ? '#f0fdf4' : '#fff', border: `1px solid ${feita ? '#86efac' : '#e5e7eb'}`, borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div>
-                      <p style={{ fontSize: '15px', fontWeight: '500', color: feita ? '#9ca3af' : '#111', textDecoration: feita ? 'line-through' : 'none', margin: '0 0 4px' }}>{tarefa.tarefa}</p>
-                      <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 2px' }}>{fmtQtd(tarefa.quantidade, tarefa.unidade)}</p>
-                      <p style={{ fontSize: '11px', color: '#9ca3af', margin: '0 0 1px' }}>→ {tarefa.componenteDestino}</p>
-                      <p style={{ fontSize: '11px', color: '#9ca3af', margin: 0 }}>{tarefa.pratoDestino}</p>
-                      {tarefa.observacoes && <p style={{ fontSize: '11px', color: '#9ca3af', margin: '2px 0 0' }}>{tarefa.observacoes}</p>}
-                    </div>
-                    {!feita && (
-                      <button onClick={() => guardarRegisto('preparacao', tarefa.tarefaId, { concluido: true })}
-                        style={{ width: '100%', padding: '12px', borderRadius: '8px', border: 'none', background: '#80c944', color: '#fff', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>
-                        Feito ✓
-                      </button>
-                    )}
-                    {feita && !impressa && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {tarefa.requerDesinfeccao && (
-                          <div style={{ background: '#fff', border: '1px solid #e0e7ff', borderRadius: '10px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <p style={{ fontSize: '12px', fontWeight: '600', color: '#4338ca', textTransform: 'uppercase', letterSpacing: '0.5px', margin: 0 }}>
-                              Desinfeção
-                            </p>
-                            <div>
-                              <label style={estiloLabel}>Desinfectante (ml)</label>
-                              <SliderSimples
-                                valor={desinf.quantidade_desinfectante_ml}
-                                min={0}
-                                max={100}
-                                step={1}
-                                onChange={v => guardarRegistoDesinfeccao(tarefa.tarefaId, { quantidade_desinfectante_ml: Math.round(v) })}
-                                formatarValor={v => `${Math.round(v)} ml`}
-                              />
-                            </div>
-                            <div>
-                              <label style={estiloLabel}>Água (litros)</label>
-                              <SliderSimples
-                                valor={desinf.litros_agua}
-                                min={0}
-                                max={50}
-                                step={0.5}
-                                onChange={v => guardarRegistoDesinfeccao(tarefa.tarefaId, { litros_agua: Number(v.toFixed(1)) })}
-                                formatarValor={v => `${v.toFixed(1)} l`}
-                              />
-                            </div>
-                            <div>
-                              <label style={estiloLabel}>Tempo (minutos)</label>
-                              <SliderSimples
-                                valor={desinf.tempo_minutos}
-                                min={0}
-                                max={20}
-                                step={1}
-                                onChange={v => guardarRegistoDesinfeccao(tarefa.tarefaId, { tempo_minutos: Math.round(v) })}
-                                formatarValor={v => `${Math.round(v)} min`}
-                              />
-                            </div>
-                            <div>
-                              <label style={estiloLabel}>Funcionário</label>
-                              <select value={desinf.nome_staff || ''}
-                                onChange={e => guardarRegistoDesinfeccao(tarefa.tarefaId, { nome_staff: e.target.value || null })}
-                                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', background: '#fff', color: '#111827', boxSizing: 'border-box' }}>
-                                <option value="">— Seleciona quem fez —</option>
-                                {staffLoja.map(s => (
-                                  <option key={s.id} value={s.nome}>{s.nome}</option>
-                                ))}
-                              </select>
-                            </div>
+                    return (
+                      <div key={tarefa.tarefaId} style={{ background: feita ? '#f0fdf4' : '#fff', border: `1px solid ${feita ? '#86efac' : '#e5e7eb'}`, borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div>
+                          <p style={{ fontSize: '15px', fontWeight: '500', color: feita ? '#9ca3af' : '#111', textDecoration: feita ? 'line-through' : 'none', margin: '0 0 4px' }}>{tarefa.tarefa}</p>
+                          <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 2px' }}>{fmtQtd(tarefa.quantidade, tarefa.unidade)}</p>
+                          <p style={{ fontSize: '11px', color: '#9ca3af', margin: '0 0 1px' }}>→ {tarefa.componenteDestino}</p>
+                          <p style={{ fontSize: '11px', color: '#9ca3af', margin: 0 }}>{tarefa.pratoDestino}</p>
+                          {tarefa.observacoes && <p style={{ fontSize: '11px', color: '#9ca3af', margin: '2px 0 0' }}>{tarefa.observacoes}</p>}
+                        </div>
+                        {!feita && (
+                          <button onClick={() => guardarRegisto('preparacao', tarefa.tarefaId, { concluido: true })}
+                            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: 'none', background: '#80c944', color: '#fff', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>
+                            Feito ✓
+                          </button>
+                        )}
+                        {feita && !impressa && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {tarefa.requerDesinfeccao && (
+                              <div style={{ background: '#fff', border: '1px solid #e0e7ff', borderRadius: '10px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <p style={{ fontSize: '12px', fontWeight: '600', color: '#4338ca', textTransform: 'uppercase', letterSpacing: '0.5px', margin: 0 }}>
+                                  Desinfeção
+                                </p>
+                                <div>
+                                  <label style={estiloLabel}>Desinfectante (ml)</label>
+                                  <SliderSimples
+                                    valor={desinf.quantidade_desinfectante_ml}
+                                    min={0}
+                                    max={100}
+                                    step={1}
+                                    onChange={v => guardarRegistoDesinfeccao(tarefa.tarefaId, { quantidade_desinfectante_ml: Math.round(v) })}
+                                    formatarValor={v => `${Math.round(v)} ml`}
+                                  />
+                                </div>
+                                <div>
+                                  <label style={estiloLabel}>Água (litros)</label>
+                                  <SliderSimples
+                                    valor={desinf.litros_agua}
+                                    min={0}
+                                    max={50}
+                                    step={0.5}
+                                    onChange={v => guardarRegistoDesinfeccao(tarefa.tarefaId, { litros_agua: Number(v.toFixed(1)) })}
+                                    formatarValor={v => `${v.toFixed(1)} l`}
+                                  />
+                                </div>
+                                <div>
+                                  <label style={estiloLabel}>Tempo (minutos)</label>
+                                  <SliderSimples
+                                    valor={desinf.tempo_minutos}
+                                    min={0}
+                                    max={20}
+                                    step={1}
+                                    onChange={v => guardarRegistoDesinfeccao(tarefa.tarefaId, { tempo_minutos: Math.round(v) })}
+                                    formatarValor={v => `${Math.round(v)} min`}
+                                  />
+                                </div>
+                                <div>
+                                  <label style={estiloLabel}>Funcionário</label>
+                                  <select value={desinf.nome_staff || ''}
+                                    onChange={e => guardarRegistoDesinfeccao(tarefa.tarefaId, { nome_staff: e.target.value || null })}
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', background: '#fff', color: '#111827', boxSizing: 'border-box' }}>
+                                    <option value="">— Seleciona quem fez —</option>
+                                    {staffLoja.map(s => (
+                                      <option key={s.id} value={s.nome}>{s.nome}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            )}
+                            {(() => {
+                              const desinfStaffOk = !tarefa.requerDesinfeccao || !!desinf.nome_staff
+                              return (
+                                <button
+                                  onClick={() => {
+                                    if (!desinfStaffOk) return
+                                    imprimirEtiqueta(
+                                      { componenteDestino: tarefa.componenteDestino, pratoDestino: tarefa.pratoDestino, ingrediente: grupo.ingredienteNome, quantidade: fmtQtd(tarefa.quantidade, tarefa.unidade), data: dataHoje() },
+                                      () => {
+                                        guardarRegisto('preparacao', tarefa.tarefaId, { impressao_etiqueta: true })
+                                        if (tarefa.requerDesinfeccao) {
+                                          guardarRegistoDesinfeccao(tarefa.tarefaId, { concluido: true })
+                                        }
+                                      }
+                                    )
+                                  }}
+                                  disabled={!desinfStaffOk}
+                                  title={desinfStaffOk ? '' : 'Seleciona o funcionário antes de imprimir'}
+                                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid ' + (desinfStaffOk ? '#d1d5db' : '#e5e7eb'), background: desinfStaffOk ? '#fff' : '#f3f4f6', color: desinfStaffOk ? '#374151' : '#9ca3af', fontSize: '14px', fontWeight: '500', cursor: desinfStaffOk ? 'pointer' : 'not-allowed' }}>
+                                  {desinfStaffOk ? '🖨 Imprimir etiqueta' : 'Seleciona o funcionário'}
+                                </button>
+                              )
+                            })()}
+                            <button onClick={() => guardarRegisto('preparacao', tarefa.tarefaId, { concluido: false })}
+                              style={{ width: '100%', padding: '8px', borderRadius: '8px', border: 'none', background: '#f3f4f6', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>
+                              Desfazer
+                            </button>
                           </div>
                         )}
-                        {(() => {
-                          const desinfStaffOk = !tarefa.requerDesinfeccao || !!desinf.nome_staff
-                          return (
-                            <button
-                              onClick={() => {
-                                if (!desinfStaffOk) return
-                                imprimirEtiqueta(
-                                  { componenteDestino: tarefa.componenteDestino, pratoDestino: tarefa.pratoDestino, ingrediente: grupo.ingredienteNome, quantidade: fmtQtd(tarefa.quantidade, tarefa.unidade), data: dataHoje() },
-                                  () => {
-                                    guardarRegisto('preparacao', tarefa.tarefaId, { impressao_etiqueta: true })
-                                    if (tarefa.requerDesinfeccao) {
-                                      guardarRegistoDesinfeccao(tarefa.tarefaId, { concluido: true })
-                                    }
-                                  }
-                                )
-                              }}
-                              disabled={!desinfStaffOk}
-                              title={desinfStaffOk ? '' : 'Seleciona o funcionário antes de imprimir'}
-                              style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid ' + (desinfStaffOk ? '#d1d5db' : '#e5e7eb'), background: desinfStaffOk ? '#fff' : '#f3f4f6', color: desinfStaffOk ? '#374151' : '#9ca3af', fontSize: '14px', fontWeight: '500', cursor: desinfStaffOk ? 'pointer' : 'not-allowed' }}>
-                              {desinfStaffOk ? '🖨 Imprimir etiqueta' : 'Seleciona o funcionário'}
-                            </button>
-                          )
-                        })()}
-                        <button onClick={() => guardarRegisto('preparacao', tarefa.tarefaId, { concluido: false })}
-                          style={{ width: '100%', padding: '8px', borderRadius: '8px', border: 'none', background: '#f3f4f6', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>
-                          Desfazer
-                        </button>
                       </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+
+          {/* Coluna lateral: tarefas concluídas como pills */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {pillsConcluidos.length > 0 && (
+              <p style={{ fontSize: '11px', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 4px' }}>
+                Concluídos ({pillsConcluidos.length})
+              </p>
+            )}
+            {pillsConcluidos.map(pill => (
+              <PillConcluido
+                key={pill.tarefaId}
+                label={pill.label}
+                onDesfazer={() => guardarRegisto('preparacao', pill.tarefaId, { concluido: false, impressao_etiqueta: false })}
+              />
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -1121,6 +1181,29 @@ export default function Cozinha() {
       .filter(p => p.pratoNome.toLowerCase().includes(pesquisaFinalizacao.toLowerCase()))
       .sort((a, b) => a.pratoNome.localeCompare(b.pratoNome))
 
+    // Construir lista plana de pills concluídos (todos os pratos)
+    // Só vai para "Concluídos" quando estiver feito E impresso
+    const pillsConcluidos: { tarefaId: number; label: string }[] = []
+    pratosFiltrados.forEach(prato => {
+      prato.tarefas.forEach(tarefa => {
+        const reg = registos[`finalizacao|${tarefa.tarefaId}`]
+        if (reg?.concluido && reg?.impressao_etiqueta) {
+          pillsConcluidos.push({ tarefaId: tarefa.tarefaId, label: tarefa.tarefa })
+        }
+      })
+    })
+
+    // Filtrar pratos para mostrar apenas os que têm tarefas ativas (não concluídas+impressas)
+    const pratosAtivos = pratosFiltrados
+      .map(prato => ({
+        ...prato,
+        tarefas: prato.tarefas.filter(tarefa => {
+          const reg = registos[`finalizacao|${tarefa.tarefaId}`]
+          return !(reg?.concluido && reg?.impressao_etiqueta)
+        })
+      }))
+      .filter(prato => prato.tarefas.length > 0)
+
     return (
       <div>
         <div style={{ position: 'sticky', top: '97px', zIndex: 9, background: '#f9fafb', paddingBottom: '10px', borderBottom: '1px solid #e5e7eb', marginBottom: '14px' }}>
@@ -1133,48 +1216,76 @@ export default function Cozinha() {
           />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {pratosFiltrados.length === 0 && (
-          <p style={{ fontSize: '14px', color: '#6b7280', textAlign: 'center', padding: '40px 0' }}>
-            Nenhum prato encontrado.
-          </p>
-        )}
-        {pratosFiltrados.map(prato => (
-          <div key={prato.pratoNome}>
-            <p style={{ fontSize: '13px', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #e5e7eb' }}>{prato.pratoNome}</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
-              {prato.tarefas.sort((a, b) => a.ordem - b.ordem).map(tarefa => {
-                const chave = `finalizacao|${tarefa.tarefaId}`
-                const reg = registos[chave] || { concluido: false }
-                const feita = reg.concluido || false
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: '20px', alignItems: 'start' }}>
+          {/* Coluna principal: pratos com tarefas ativas */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {pratosAtivos.length === 0 && (
+              <p style={{ fontSize: '14px', color: '#6b7280', textAlign: 'center', padding: '40px 0' }}>
+                {pratosFiltrados.length === 0 ? 'Nenhum prato encontrado.' : 'Todas as tarefas foram concluídas.'}
+              </p>
+            )}
+            {pratosAtivos.map(prato => (
+              <div key={prato.pratoNome}>
+                <p style={{ fontSize: '13px', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #e5e7eb' }}>{prato.pratoNome}</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                  {prato.tarefas.sort((a, b) => a.ordem - b.ordem).map(tarefa => {
+                    const chave = `finalizacao|${tarefa.tarefaId}`
+                    const reg = registos[chave] || { concluido: false, impressao_etiqueta: false }
+                    const feita = reg.concluido || false
+                    const impressa = reg.impressao_etiqueta || false
 
-                if (feita) {
-                  return (
-                    <PillConcluido
-                      key={tarefa.tarefaId}
-                      label={tarefa.tarefa}
-                      onDesfazer={() => guardarRegisto('finalizacao', tarefa.tarefaId, { concluido: false })}
-                    />
-                  )
-                }
-
-                return (
-                  <div key={tarefa.tarefaId} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div>
-                      <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 2px' }}>{tarefa.componenteNome}</p>
-                      <p style={{ fontSize: '15px', fontWeight: '500', color: '#111', margin: '0 0 2px' }}>{tarefa.tarefa}</p>
-                      <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>{fmtQtd(tarefa.quantidade, tarefa.unidade)}{tarefa.observacoes ? ` · ${tarefa.observacoes}` : ''}</p>
-                    </div>
-                    <button onClick={() => guardarRegisto('finalizacao', tarefa.tarefaId, { concluido: true })}
-                      style={{ width: '100%', padding: '12px', borderRadius: '8px', border: 'none', background: '#80c944', color: '#fff', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>
-                      Feito ✓
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
+                    return (
+                      <div key={tarefa.tarefaId} style={{ background: feita ? '#f0fdf4' : '#fff', border: `1px solid ${feita ? '#86efac' : '#e5e7eb'}`, borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div>
+                          <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 2px' }}>{tarefa.componenteNome}</p>
+                          <p style={{ fontSize: '15px', fontWeight: '500', color: feita ? '#9ca3af' : '#111', textDecoration: feita ? 'line-through' : 'none', margin: '0 0 2px' }}>{tarefa.tarefa}</p>
+                          <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>{fmtQtd(tarefa.quantidade, tarefa.unidade)}{tarefa.observacoes ? ` · ${tarefa.observacoes}` : ''}</p>
+                        </div>
+                        {!feita && (
+                          <button onClick={() => guardarRegisto('finalizacao', tarefa.tarefaId, { concluido: true })}
+                            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: 'none', background: '#80c944', color: '#fff', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>
+                            Feito ✓
+                          </button>
+                        )}
+                        {feita && !impressa && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <button
+                              onClick={() => imprimirEtiquetaFinalizacao(
+                                { componente: tarefa.componenteNome, pratoDestino: prato.pratoNome, data: dataHoje() },
+                                () => guardarRegisto('finalizacao', tarefa.tarefaId, { impressao_etiqueta: true })
+                              )}
+                              style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', background: '#fff', color: '#374151', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
+                              🖨 Imprimir etiqueta
+                            </button>
+                            <button onClick={() => guardarRegisto('finalizacao', tarefa.tarefaId, { concluido: false })}
+                              style={{ width: '100%', padding: '8px', borderRadius: '8px', border: 'none', background: '#f3f4f6', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>
+                              Desfazer
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+
+          {/* Coluna lateral: tarefas concluídas como pills */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {pillsConcluidos.length > 0 && (
+              <p style={{ fontSize: '11px', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 4px' }}>
+                Concluídos ({pillsConcluidos.length})
+              </p>
+            )}
+            {pillsConcluidos.map(pill => (
+              <PillConcluido
+                key={pill.tarefaId}
+                label={pill.label}
+                onDesfazer={() => guardarRegisto('finalizacao', pill.tarefaId, { concluido: false, impressao_etiqueta: false })}
+              />
+            ))}
+          </div>
         </div>
       </div>
     )
