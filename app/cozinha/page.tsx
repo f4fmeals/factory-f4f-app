@@ -221,6 +221,44 @@ function SliderComBotoes({
   )
 }
 
+function SeletorEtiquetas({
+  valor,
+  onChange,
+  altura = 40,
+}: {
+  valor: number
+  onChange: (v: number) => void
+  altura?: number
+}) {
+  const decrementar = () => onChange(Math.max(1, valor - 1))
+  const incrementar = () => onChange(Math.min(5, valor + 1))
+  const estiloBotao: React.CSSProperties = {
+    width: '32px',
+    height: `${altura}px`,
+    border: '1px solid #e5e7eb',
+    background: '#fff',
+    fontSize: '15px',
+    fontWeight: '500',
+    color: '#6b7280',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    padding: 0,
+    lineHeight: 1,
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+      <button type="button" onClick={decrementar} disabled={valor <= 1}
+        style={{ ...estiloBotao, borderRadius: '8px 0 0 8px', color: '#6b7280', cursor: valor <= 1 ? 'not-allowed' : 'pointer' }}>−</button>
+      <span style={{ fontSize: '14px', fontWeight: '600', width: '28px', height: `${altura}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151', borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb', background: '#fff' }}>{valor}</span>
+      <button type="button" onClick={incrementar} disabled={valor >= 5}
+        style={{ ...estiloBotao, borderRadius: '0 8px 8px 0', color: valor >= 5 ? '#d1d5db' : '#6b7280', cursor: valor >= 5 ? 'not-allowed' : 'pointer' }}>+</button>
+    </div>
+  )
+}
+
 function SliderSimples({
   valor,
   min,
@@ -273,6 +311,7 @@ export default function Cozinha() {
   const [registosEmbalamento, setRegistosEmbalamento] = useState<Record<string, RegistoEmbalamento>>({})
   const [registosDesinfeccao, setRegistosDesinfeccao] = useState<Record<number, RegistoDesinfeccao>>({})
   const [staffLoja, setStaffLoja] = useState<Staff[]>([])
+  const [numEtiquetas, setNumEtiquetas] = useState<Record<string, number>>({})
 
 
   // Ref para evitar fetches sobrepostos quando o tablet volta a ficar visível
@@ -652,6 +691,23 @@ export default function Cozinha() {
     await enviarZPL(zpl, onImprimiu)
   }
 
+  async function imprimirVarias(zpl: string, quantidade: number, onImprimiu: () => void) {
+    try {
+      for (let i = 0; i < quantidade; i++) {
+        const resposta = await fetch(PRINTER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ zpl }),
+        })
+        if (!resposta.ok) throw new Error('Erro ao enviar etiqueta')
+      }
+      onImprimiu()
+    } catch (erro) {
+      console.error('Erro de impressão:', erro)
+      alert('Não consegui imprimir.\n\nVerifica:\n• PC ligado\n• servidor ativo\n• tablet na mesma rede')
+    }
+  }
+
   async function enviarZPL(zpl: string, onImprimiu: () => void) {
     try {
       const resposta = await fetch(PRINTER_URL, {
@@ -862,31 +918,55 @@ export default function Cozinha() {
                             )}
                             {(() => {
                               const desinfStaffOk = !tarefa.requerDesinfeccao || !!desinf.nome_staff
+                              const chaveEtiq = `preparacao|${tarefa.tarefaId}`
+                              const qtdEtiq = numEtiquetas[chaveEtiq] || 1
+                              const concluirSemImprimir = () => {
+                                if (!desinfStaffOk) return
+                                guardarRegisto('preparacao', tarefa.tarefaId, { impressao_etiqueta: true })
+                                if (tarefa.requerDesinfeccao) {
+                                  guardarRegistoDesinfeccao(tarefa.tarefaId, { concluido: true })
+                                }
+                              }
                               return (
-                                <button
-                                  onClick={() => {
-                                    if (!desinfStaffOk) return
-                                    imprimirEtiqueta(
-                                      { componenteDestino: tarefa.componenteDestino, pratoDestino: tarefa.pratoDestino, ingrediente: grupo.ingredienteNome, quantidade: fmtQtd(tarefa.quantidade, tarefa.unidade), data: dataHoje() },
-                                      () => {
-                                        guardarRegisto('preparacao', tarefa.tarefaId, { impressao_etiqueta: true })
-                                        if (tarefa.requerDesinfeccao) {
-                                          guardarRegistoDesinfeccao(tarefa.tarefaId, { concluido: true })
-                                        }
-                                      }
-                                    )
-                                  }}
-                                  disabled={!desinfStaffOk}
-                                  title={desinfStaffOk ? '' : 'Seleciona o funcionário antes de imprimir'}
-                                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid ' + (desinfStaffOk ? '#d1d5db' : '#e5e7eb'), background: desinfStaffOk ? '#fff' : '#f3f4f6', color: desinfStaffOk ? '#374151' : '#9ca3af', fontSize: '14px', fontWeight: '500', cursor: desinfStaffOk ? 'pointer' : 'not-allowed' }}>
-                                  {desinfStaffOk ? '🖨 Imprimir etiqueta' : 'Seleciona o funcionário'}
-                                </button>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <SeletorEtiquetas
+                                      valor={qtdEtiq}
+                                      onChange={v => setNumEtiquetas(prev => ({ ...prev, [chaveEtiq]: v }))}
+                                      altura={44}
+                                    />
+                                    <button
+                                      onClick={() => {
+                                        if (!desinfStaffOk) return
+                                        const zpl = gerarZPL({ componenteDestino: tarefa.componenteDestino, pratoDestino: tarefa.pratoDestino, ingrediente: grupo.ingredienteNome, quantidade: fmtQtd(tarefa.quantidade, tarefa.unidade), data: dataHoje() })
+                                        imprimirVarias(zpl, qtdEtiq, () => {
+                                          guardarRegisto('preparacao', tarefa.tarefaId, { impressao_etiqueta: true })
+                                          if (tarefa.requerDesinfeccao) {
+                                            guardarRegistoDesinfeccao(tarefa.tarefaId, { concluido: true })
+                                          }
+                                        })
+                                      }}
+                                      disabled={!desinfStaffOk}
+                                      title={desinfStaffOk ? '' : 'Seleciona o funcionário antes de imprimir'}
+                                      style={{ flex: 1, height: '44px', borderRadius: '8px', border: '1px solid ' + (desinfStaffOk ? '#d1d5db' : '#e5e7eb'), background: desinfStaffOk ? '#fff' : '#f3f4f6', color: desinfStaffOk ? '#374151' : '#9ca3af', fontSize: '14px', fontWeight: '500', cursor: desinfStaffOk ? 'pointer' : 'not-allowed' }}>
+                                      {desinfStaffOk ? '🖨 Imprimir etiqueta' : 'Seleciona o funcionário'}
+                                    </button>
+                                  </div>
+                                  <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px', display: 'flex', gap: '8px' }}>
+                                    <button
+                                      onClick={concluirSemImprimir}
+                                      disabled={!desinfStaffOk}
+                                      style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: '#f3f4f6', color: desinfStaffOk ? '#6b7280' : '#d1d5db', fontSize: '12px', cursor: desinfStaffOk ? 'pointer' : 'not-allowed' }}>
+                                      Concluir sem imprimir
+                                    </button>
+                                    <button onClick={() => guardarRegisto('preparacao', tarefa.tarefaId, { concluido: false })}
+                                      style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: '#f3f4f6', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>
+                                      Desfazer
+                                    </button>
+                                  </div>
+                                </div>
                               )
                             })()}
-                            <button onClick={() => guardarRegisto('preparacao', tarefa.tarefaId, { concluido: false })}
-                              style={{ width: '100%', padding: '8px', borderRadius: '8px', border: 'none', background: '#f3f4f6', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>
-                              Desfazer
-                            </button>
                           </div>
                         )}
                       </div>
@@ -1097,34 +1177,53 @@ export default function Cozinha() {
                   {(() => {
                     const staffOk = !!reg.nome_staff
                     const podeImprimirAgora = podeImprimir && staffOk
+                    const chaveEtiq = `confeccao|${comp.componenteId}`
+                    const qtdEtiq = numEtiquetas[chaveEtiq] || 1
                     const labelBotao = !podeImprimir ? 'Define a quantidade final' : !staffOk ? 'Seleciona o funcionário' : '🖨 Imprimir etiqueta'
                     return (
-                      <button
-                        onClick={() => podeImprimirAgora && imprimirEtiquetaConfeccao(
-                          { componente: comp.componenteNome, pratosDestino: pratosDestinoStr, quantidadeFinal: cfgSlider.formatar(qtdFinal), data: dataHoje() },
-                          () => guardarRegisto('confeccao', comp.componenteId, { impressao_etiqueta: true })
-                        )}
-                        disabled={!podeImprimirAgora}
-                        style={{
-                          width: '100%',
-                          padding: '13px',
-                          borderRadius: '8px',
-                          border: '1px solid ' + (podeImprimirAgora ? '#d1d5db' : '#e5e7eb'),
-                          background: podeImprimirAgora ? '#fff' : '#f3f4f6',
-                          color: podeImprimirAgora ? '#374151' : '#9ca3af',
-                          fontSize: '15px',
-                          fontWeight: '500',
-                          cursor: podeImprimirAgora ? 'pointer' : 'not-allowed',
-                        }}>
-                        {labelBotao}
-                      </button>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <SeletorEtiquetas
+                            valor={qtdEtiq}
+                            onChange={v => setNumEtiquetas(prev => ({ ...prev, [chaveEtiq]: v }))}
+                            altura={44}
+                          />
+                          <button
+                            onClick={() => {
+                              if (!podeImprimirAgora) return
+                              const zpl = gerarZPLConfeccao({ componente: comp.componenteNome, pratosDestino: pratosDestinoStr, quantidadeFinal: cfgSlider.formatar(qtdFinal), data: dataHoje() })
+                              imprimirVarias(zpl, qtdEtiq, () => guardarRegisto('confeccao', comp.componenteId, { impressao_etiqueta: true }))
+                            }}
+                            disabled={!podeImprimirAgora}
+                            style={{
+                              flex: 1,
+                              height: '44px',
+                              borderRadius: '8px',
+                              border: '1px solid ' + (podeImprimirAgora ? '#d1d5db' : '#e5e7eb'),
+                              background: podeImprimirAgora ? '#fff' : '#f3f4f6',
+                              color: podeImprimirAgora ? '#374151' : '#9ca3af',
+                              fontSize: '14px',
+                              fontWeight: '500',
+                              cursor: podeImprimirAgora ? 'pointer' : 'not-allowed',
+                            }}>
+                            {labelBotao}
+                          </button>
+                        </div>
+                        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px', display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => podeImprimirAgora && guardarRegisto('confeccao', comp.componenteId, { impressao_etiqueta: true })}
+                            disabled={!podeImprimirAgora}
+                            style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: '#f3f4f6', color: podeImprimirAgora ? '#6b7280' : '#d1d5db', fontSize: '12px', cursor: podeImprimirAgora ? 'pointer' : 'not-allowed' }}>
+                            Concluir sem imprimir
+                          </button>
+                          <button onClick={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false, impressao_etiqueta: false })}
+                            style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: '#f3f4f6', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>
+                            Desfazer
+                          </button>
+                        </div>
+                      </div>
                     )
                   })()}
-
-                  <button onClick={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false, impressao_etiqueta: false })}
-                    style={{ width: '100%', padding: '8px', borderRadius: '8px', border: 'none', background: '#f3f4f6', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>
-                    Desfazer
-                  </button>
                 </div>
               )
             })}
@@ -1183,12 +1282,12 @@ export default function Cozinha() {
 
     // Construir lista plana de pills concluídos (todos os pratos)
     // Só vai para "Concluídos" quando estiver feito E impresso
-    const pillsConcluidos: { tarefaId: number; label: string }[] = []
+    const pillsConcluidos: { chave: string; tarefaId: number; label: string }[] = []
     pratosFiltrados.forEach(prato => {
       prato.tarefas.forEach(tarefa => {
         const reg = registos[`finalizacao|${tarefa.tarefaId}`]
         if (reg?.concluido && reg?.impressao_etiqueta) {
-          pillsConcluidos.push({ tarefaId: tarefa.tarefaId, label: tarefa.tarefa })
+          pillsConcluidos.push({ chave: `${prato.pratoNome}|${tarefa.tarefaId}`, tarefaId: tarefa.tarefaId, label: `${prato.pratoNome} · ${tarefa.tarefa}` })
         }
       })
     })
@@ -1247,22 +1346,39 @@ export default function Cozinha() {
                             Feito ✓
                           </button>
                         )}
-                        {feita && !impressa && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <button
-                              onClick={() => imprimirEtiquetaFinalizacao(
-                                { componente: tarefa.componenteNome, pratoDestino: prato.pratoNome, data: dataHoje() },
-                                () => guardarRegisto('finalizacao', tarefa.tarefaId, { impressao_etiqueta: true })
-                              )}
-                              style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', background: '#fff', color: '#374151', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
-                              🖨 Imprimir etiqueta
-                            </button>
-                            <button onClick={() => guardarRegisto('finalizacao', tarefa.tarefaId, { concluido: false })}
-                              style={{ width: '100%', padding: '8px', borderRadius: '8px', border: 'none', background: '#f3f4f6', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>
-                              Desfazer
-                            </button>
-                          </div>
-                        )}
+                        {feita && !impressa && (() => {
+                          const chaveEtiq = `finalizacao|${tarefa.tarefaId}`
+                          const qtdEtiq = numEtiquetas[chaveEtiq] || 1
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <SeletorEtiquetas
+                                  valor={qtdEtiq}
+                                  onChange={v => setNumEtiquetas(prev => ({ ...prev, [chaveEtiq]: v }))}
+                                  altura={44}
+                                />
+                                <button
+                                  onClick={() => {
+                                    const zpl = gerarZPLFinalizacao({ componente: tarefa.componenteNome, pratoDestino: prato.pratoNome, data: dataHoje() })
+                                    imprimirVarias(zpl, qtdEtiq, () => guardarRegisto('finalizacao', tarefa.tarefaId, { impressao_etiqueta: true }))
+                                  }}
+                                  style={{ flex: 1, height: '44px', borderRadius: '8px', border: '1px solid #d1d5db', background: '#fff', color: '#374151', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
+                                  🖨 Imprimir etiqueta
+                                </button>
+                              </div>
+                              <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px', display: 'flex', gap: '8px' }}>
+                                <button onClick={() => guardarRegisto('finalizacao', tarefa.tarefaId, { impressao_etiqueta: true })}
+                                  style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: '#f3f4f6', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>
+                                  Concluir sem imprimir
+                                </button>
+                                <button onClick={() => guardarRegisto('finalizacao', tarefa.tarefaId, { concluido: false })}
+                                  style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: '#f3f4f6', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>
+                                  Desfazer
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })()}
                       </div>
                     )
                   })}
@@ -1280,7 +1396,7 @@ export default function Cozinha() {
             )}
             {pillsConcluidos.map(pill => (
               <PillConcluido
-                key={pill.tarefaId}
+                key={pill.chave}
                 label={pill.label}
                 onDesfazer={() => guardarRegisto('finalizacao', pill.tarefaId, { concluido: false, impressao_etiqueta: false })}
               />
