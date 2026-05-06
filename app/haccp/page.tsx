@@ -151,6 +151,12 @@ export default function HaccpHome() {
   const [formInstTemFabrico, setFormInstTemFabrico] = useState(false)
   const [aGuardarInst, setAGuardarInst] = useState(false)
 
+  // Configurações (modal hub)
+  const [modalConfigAberto, setModalConfigAberto] = useState(false)
+  const [modalEquipamentosAberto, setModalEquipamentosAberto] = useState(false)
+  const [modalEspacosAberto, setModalEspacosAberto] = useState(false)
+  const [modalFuncionariosAberto, setModalFuncionariosAberto] = useState(false)
+
   // Staff
   const [staff, setStaff] = useState<Staff[]>([])
   const [aCarregarStaff, setACarregarStaff] = useState(false)
@@ -183,11 +189,21 @@ export default function HaccpHome() {
   const [formRegistoObs, setFormRegistoObs] = useState('')
   const [aGuardarRegisto, setAGuardarRegisto] = useState(false)
 
-  const [modalHistoricoAberto, setModalHistoricoAberto] = useState(false)
-  const [historicoRegistos, setHistoricoRegistos] = useState<RegistoTemp[]>([])
-  const [aCarregarHistorico, setACarregarHistorico] = useState(false)
-  const [filtroHistDataInicio, setFiltroHistDataInicio] = useState('')
-  const [filtroHistDataFim, setFiltroHistDataFim] = useState('')
+  // Tabela de últimos 7 dias na aba Temperaturas
+  const [registosTemp7d, setRegistosTemp7d] = useState<RegistoTemp[]>([])
+  const [aCarregarRegistosTemp7d, setACarregarRegistosTemp7d] = useState(false)
+  const [filtroTempDataInicio, setFiltroTempDataInicio] = useState('')
+  const [filtroTempDataFim, setFiltroTempDataFim] = useState('')
+
+  // Modal de criação à posteriori (gestor)
+  const [modalNovoTempPostAberto, setModalNovoTempPostAberto] = useState(false)
+  const [formPostTempData, setFormPostTempData] = useState('')
+  const [formPostTempEquipId, setFormPostTempEquipId] = useState<number | ''>('')
+  const [formPostTempPeriodo, setFormPostTempPeriodo] = useState<'manha' | 'tarde'>('manha')
+  const [formPostTempValor, setFormPostTempValor] = useState(4)
+  const [formPostTempStaff, setFormPostTempStaff] = useState('')
+  const [formPostTempObs, setFormPostTempObs] = useState('')
+  const [aGuardarPostTemp, setAGuardarPostTemp] = useState(false)
 
   // --- LIMPEZA ---
   const [espacos, setEspacos] = useState<Espaco[]>([])
@@ -219,12 +235,23 @@ export default function HaccpHome() {
   const [formLimpezaTarefasConcluidas, setFormLimpezaTarefasConcluidas] = useState<Record<number, boolean>>({})
   const [aGuardarLimpeza, setAGuardarLimpeza] = useState(false)
 
-  const [modalHistoricoLimpezaAberto, setModalHistoricoLimpezaAberto] = useState(false)
-  const [historicoLimpezaRegistos, setHistoricoLimpezaRegistos] = useState<RegistoLimpeza[]>([])
-  const [historicoLimpezaTarefas, setHistoricoLimpezaTarefas] = useState<RegistoLimpezaTarefa[]>([])
-  const [aCarregarHistoricoLimpeza, setACarregarHistoricoLimpeza] = useState(false)
+  // Lista de últimos 7 dias na aba Limpeza
+  const [registosLimpeza7d, setRegistosLimpeza7d] = useState<RegistoLimpeza[]>([])
+  const [registosLimpezaTarefas7d, setRegistosLimpezaTarefas7d] = useState<RegistoLimpezaTarefa[]>([])
+  const [aCarregarRegistosLimpeza7d, setACarregarRegistosLimpeza7d] = useState(false)
   const [filtroLimpezaDataInicio, setFiltroLimpezaDataInicio] = useState('')
   const [filtroLimpezaDataFim, setFiltroLimpezaDataFim] = useState('')
+
+  // Modal de criação/edição à posteriori (gestor)
+  const [modalLimpezaPostAberto, setModalLimpezaPostAberto] = useState(false)
+  const [registoLimpezaEmEdicao, setRegistoLimpezaEmEdicao] = useState<RegistoLimpeza | null>(null)
+  const [formPostLimpData, setFormPostLimpData] = useState('')
+  const [formPostLimpHora, setFormPostLimpHora] = useState('')
+  const [formPostLimpEspId, setFormPostLimpEspId] = useState<number | ''>('')
+  const [formPostLimpStaff, setFormPostLimpStaff] = useState('')
+  const [formPostLimpObs, setFormPostLimpObs] = useState('')
+  const [formPostLimpTarefas, setFormPostLimpTarefas] = useState<Record<number, boolean>>({})
+  const [aGuardarPostLimp, setAGuardarPostLimp] = useState(false)
 
   // --- LAVAGEM HORTOFRUTÍCOLAS ---
   const [registosLavagem, setRegistosLavagem] = useState<RegistoLavagem[]>([])
@@ -277,31 +304,56 @@ export default function HaccpHome() {
 
   useEffect(() => {
     if (instalacaoSel) {
+      const hoje = obterDataHoje()
+      const ha7 = new Date(); ha7.setDate(ha7.getDate() - 7)
+      const data7 = `${ha7.getFullYear()}-${String(ha7.getMonth() + 1).padStart(2, '0')}-${String(ha7.getDate()).padStart(2, '0')}`
+      setFiltroTempDataInicio(data7); setFiltroTempDataFim(hoje)
+      setFiltroLimpezaDataInicio(data7); setFiltroLimpezaDataFim(hoje)
       carregarEquipamentos(instalacaoSel.id)
       carregarRegistosHoje(instalacaoSel.id)
       carregarEspacos(instalacaoSel.id)
       carregarRegistosLimpezaHoje(instalacaoSel.id)
       carregarStaff(instalacaoSel.id)
+      // carregar tabelas 7d são chamadas após equipamentos/espaços terem sido carregados (ver useEffect dedicado)
     } else {
-      setEquipamentos([]); setRegistosHoje([])
+      setEquipamentos([]); setRegistosHoje([]); setRegistosTemp7d([])
       setEspacos([]); setTarefasPorEspaco({})
       setRegistosLimpezaHoje([]); setRegistosLimpezaTarefas([])
+      setRegistosLimpeza7d([]); setRegistosLimpezaTarefas7d([])
       setStaff([])
       setRegistosLavagem([]); setRegistosConfeccao([])
       setRegistosRececao([])
     }
   }, [instalacaoSel])
 
+  // Sempre que equipamentos mudam, recarregar tabela 7d
   useEffect(() => {
-    if (!instalacaoSel || !instalacaoSel.tem_fabrico) return
-    if (abaAtiva === 'lavagem_horto' && registosLavagem.length === 0 && !aCarregarLavagem) {
+    if (instalacaoSel && equipamentos.length > 0 && filtroTempDataInicio && filtroTempDataFim) {
+      carregarRegistosTemp7d(filtroTempDataInicio, filtroTempDataFim)
+    } else if (equipamentos.length === 0) {
+      setRegistosTemp7d([])
+    }
+  }, [equipamentos, filtroTempDataInicio, filtroTempDataFim])
+
+  // Sempre que espaços mudam, recarregar lista 7d
+  useEffect(() => {
+    if (instalacaoSel && espacos.length > 0 && filtroLimpezaDataInicio && filtroLimpezaDataFim) {
+      carregarRegistosLimpeza7d(filtroLimpezaDataInicio, filtroLimpezaDataFim)
+    } else if (espacos.length === 0) {
+      setRegistosLimpeza7d([]); setRegistosLimpezaTarefas7d([])
+    }
+  }, [espacos, filtroLimpezaDataInicio, filtroLimpezaDataFim])
+
+  useEffect(() => {
+    if (!instalacaoSel) return
+    if (abaAtiva === 'lavagem_horto' && instalacaoSel.tem_fabrico && registosLavagem.length === 0 && !aCarregarLavagem) {
       const hoje = obterDataHoje()
       const ha7 = new Date(); ha7.setDate(ha7.getDate() - 7)
       const data7 = `${ha7.getFullYear()}-${String(ha7.getMonth() + 1).padStart(2, '0')}-${String(ha7.getDate()).padStart(2, '0')}`
       setFiltroLavagemDataInicio(data7); setFiltroLavagemDataFim(hoje)
       carregarRegistosLavagem(data7, hoje)
     }
-    if (abaAtiva === 'confeccao_arref' && registosConfeccao.length === 0 && !aCarregarConfeccao) {
+    if (abaAtiva === 'confeccao_arref' && instalacaoSel.tem_fabrico && registosConfeccao.length === 0 && !aCarregarConfeccao) {
       const hoje = obterDataHoje()
       const ha7 = new Date(); ha7.setDate(ha7.getDate() - 7)
       const data7 = `${ha7.getFullYear()}-${String(ha7.getMonth() + 1).padStart(2, '0')}-${String(ha7.getDate()).padStart(2, '0')}`
@@ -318,10 +370,15 @@ export default function HaccpHome() {
   }, [abaAtiva, instalacaoSel])
 
   useEffect(() => {
-    const bloquear = modalRegistoAberto || modalHistoricoAberto || gestaoInstalacoesAberta || modalLimpezaAberto || modalHistoricoLimpezaAberto || modalRececaoAberto
+    const bloquear = modalRegistoAberto || gestaoInstalacoesAberta || modalLimpezaAberto
+      || modalRececaoAberto || modalConfigAberto || modalEquipamentosAberto
+      || modalEspacosAberto || modalFuncionariosAberto
+      || modalNovoTempPostAberto || modalLimpezaPostAberto
     document.body.style.overflow = bloquear ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [modalRegistoAberto, modalHistoricoAberto, gestaoInstalacoesAberta, modalLimpezaAberto, modalHistoricoLimpezaAberto, modalRececaoAberto])
+  }, [modalRegistoAberto, gestaoInstalacoesAberta, modalLimpezaAberto, modalRececaoAberto,
+      modalConfigAberto, modalEquipamentosAberto, modalEspacosAberto, modalFuncionariosAberto,
+      modalNovoTempPostAberto, modalLimpezaPostAberto])
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -341,6 +398,24 @@ export default function HaccpHome() {
   function formatarHora(hora: string) {
     if (!hora) return '—'
     return hora.substring(0, 5)
+  }
+
+  function formatarDataHora(iso: string) {
+    if (!iso) return '—'
+    const d = new Date(iso)
+    const data = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+    const hora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    return `${data} ${hora}`
+  }
+
+  function formatarQtdConfeccao(valor: number | null, unidade: string | null) {
+    if (valor === null || valor === undefined) return '—'
+    const u = (unidade || 'kg').toLowerCase()
+    if (u === 'g') return `${Math.round(valor)} g`
+    if (u === 'ml') return `${Math.round(valor)} ml`
+    if (u === 'l') return `${valor.toFixed(1)} l`
+    if (u === 'un') return `${Math.round(valor)} un`
+    return `${valor.toFixed(1)} kg`
   }
 
   // ===== INSTALAÇÕES =====
@@ -471,7 +546,6 @@ export default function HaccpHome() {
     if (!ehGestor) return
     if (!instalacaoSel) return
     if (!window.confirm(`Remover "${s.nome}" da lista de funcionários? O histórico de registos com este nome é mantido.`)) return
-    // Soft-delete: marcar como inativo para preservar histórico
     const { error } = await supabase.from('haccp_staff').update({ ativo: false }).eq('id', s.id)
     if (error) { alert('Erro ao remover funcionário.'); return }
     await carregarStaff(instalacaoSel.id)
@@ -552,6 +626,20 @@ export default function HaccpHome() {
     setACarregarRegistos(false)
   }
 
+  async function carregarRegistosTemp7d(dataInicio: string, dataFim: string) {
+    if (!instalacaoSel) return
+    setACarregarRegistosTemp7d(true)
+    const equipIds = equipamentos.map((e) => e.id)
+    if (equipIds.length === 0) { setRegistosTemp7d([]); setACarregarRegistosTemp7d(false); return }
+    const { data, error } = await supabase
+      .from('haccp_registos_temperatura').select('*')
+      .gte('data_registo', dataInicio).lte('data_registo', dataFim)
+      .in('equipamento_id', equipIds)
+      .order('data_registo', { ascending: false }).order('periodo', { ascending: true })
+    if (!error) setRegistosTemp7d((data as RegistoTemp[]) || [])
+    setACarregarRegistosTemp7d(false)
+  }
+
   function obterRegistoDoDia(equipId: number, periodo: 'manha' | 'tarde') {
     return registosHoje.find((r) => r.equipamento_id === equipId && r.periodo === periodo)
   }
@@ -585,32 +673,57 @@ export default function HaccpHome() {
       setAGuardarRegisto(false); return
     }
     await carregarRegistosHoje(instalacaoSel.id)
+    await carregarRegistosTemp7d(filtroTempDataInicio, filtroTempDataFim)
     fecharModalRegisto()
     setAGuardarRegisto(false)
   }
 
-  async function abrirModalHistorico() {
-    if (!instalacaoSel) return
-    const hoje = obterDataHoje()
-    const ha7 = new Date(); ha7.setDate(ha7.getDate() - 7)
-    const data7 = `${ha7.getFullYear()}-${String(ha7.getMonth() + 1).padStart(2, '0')}-${String(ha7.getDate()).padStart(2, '0')}`
-    setFiltroHistDataInicio(data7); setFiltroHistDataFim(hoje)
-    setModalHistoricoAberto(true)
-    await carregarHistorico(data7, hoje)
+  // Modal "à posteriori" (gestor)
+  function abrirModalNovoTempPost() {
+    if (!ehGestor) return
+    setFormPostTempData(obterDataHoje())
+    setFormPostTempEquipId(equipamentos[0]?.id || '')
+    setFormPostTempPeriodo('manha')
+    if (equipamentos[0]) {
+      setFormPostTempValor(Math.round((Number(equipamentos[0].temp_min_aceitavel) + Number(equipamentos[0].temp_max_aceitavel)) / 2))
+    } else {
+      setFormPostTempValor(4)
+    }
+    setFormPostTempStaff(''); setFormPostTempObs('')
+    setModalNovoTempPostAberto(true)
   }
 
-  async function carregarHistorico(dataInicio: string, dataFim: string) {
-    if (!instalacaoSel) return
-    setACarregarHistorico(true)
-    const equipIds = equipamentos.map((e) => e.id)
-    if (equipIds.length === 0) { setHistoricoRegistos([]); setACarregarHistorico(false); return }
-    const { data, error } = await supabase
-      .from('haccp_registos_temperatura').select('*')
-      .gte('data_registo', dataInicio).lte('data_registo', dataFim)
-      .in('equipamento_id', equipIds)
-      .order('data_registo', { ascending: false }).order('periodo', { ascending: true })
-    if (!error) setHistoricoRegistos((data as RegistoTemp[]) || [])
-    setACarregarHistorico(false)
+  function fecharModalNovoTempPost() { setModalNovoTempPostAberto(false) }
+
+  async function guardarRegistoTempPost() {
+    if (!ehGestor || !instalacaoSel) return
+    if (!formPostTempData) { alert('Escolhe a data.'); return }
+    if (!formPostTempEquipId) { alert('Escolhe o equipamento.'); return }
+    if (!formPostTempStaff.trim()) { alert('Seleciona o funcionário.'); return }
+    setAGuardarPostTemp(true)
+    const equip = equipamentos.find((e) => e.id === formPostTempEquipId)
+    if (!equip) { alert('Equipamento não encontrado.'); setAGuardarPostTemp(false); return }
+    const conforme = formPostTempValor >= Number(equip.temp_min_aceitavel) && formPostTempValor <= Number(equip.temp_max_aceitavel)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('haccp_registos_temperatura').insert([{
+      equipamento_id: equip.id,
+      data_registo: formPostTempData,
+      periodo: formPostTempPeriodo,
+      temperatura: formPostTempValor,
+      conforme,
+      observacoes: formPostTempObs.trim() || null,
+      nome_staff: formPostTempStaff.trim(),
+      user_id: user?.id || null,
+    }])
+    if (error) {
+      if (error.code === '23505') alert('Já existe um registo para este equipamento neste dia/período.')
+      else alert('Erro ao guardar o registo.')
+      setAGuardarPostTemp(false); return
+    }
+    await carregarRegistosHoje(instalacaoSel.id)
+    await carregarRegistosTemp7d(filtroTempDataInicio, filtroTempDataFim)
+    fecharModalNovoTempPost()
+    setAGuardarPostTemp(false)
   }
 
   // ===== ESPAÇOS (LIMPEZA) =====
@@ -733,8 +846,7 @@ export default function HaccpHome() {
     if (error) { alert('Erro ao apagar tarefa.'); return }
     if (instalacaoSel) await carregarEspacos(instalacaoSel.id)
   }
-
-  // ===== REGISTOS DE LIMPEZA =====
+// ===== REGISTOS DE LIMPEZA =====
   async function carregarRegistosLimpezaHoje(instalacaoId: number) {
     setACarregarRegistosLimpeza(true)
     const { data: espData } = await supabase.from('haccp_espacos').select('id').eq('instalacao_id', instalacaoId)
@@ -759,12 +871,38 @@ export default function HaccpHome() {
     setACarregarRegistosLimpeza(false)
   }
 
+  async function carregarRegistosLimpeza7d(dataInicio: string, dataFim: string) {
+    if (!instalacaoSel) return
+    setACarregarRegistosLimpeza7d(true)
+    const espIds = espacos.map((e) => e.id)
+    if (espIds.length === 0) {
+      setRegistosLimpeza7d([]); setRegistosLimpezaTarefas7d([]); setACarregarRegistosLimpeza7d(false); return
+    }
+    const { data: regData } = await supabase
+      .from('haccp_registos_limpeza').select('*')
+      .gte('data_registo', dataInicio).lte('data_registo', dataFim)
+      .in('espaco_id', espIds)
+      .order('data_registo', { ascending: false }).order('hora_registo', { ascending: false })
+    const registos = (regData as RegistoLimpeza[]) || []
+    setRegistosLimpeza7d(registos)
+    if (registos.length > 0) {
+      const regIds = registos.map((r) => r.id)
+      const { data: tarData } = await supabase
+        .from('haccp_registos_limpeza_tarefas').select('*').in('registo_limpeza_id', regIds)
+      setRegistosLimpezaTarefas7d((tarData as RegistoLimpezaTarefa[]) || [])
+    } else {
+      setRegistosLimpezaTarefas7d([])
+    }
+    setACarregarRegistosLimpeza7d(false)
+  }
+
   function obterRegistoLimpezaHoje(espacoId: number) {
     return registosLimpezaHoje.find((r) => r.espaco_id === espacoId)
   }
 
-  function contarTarefasConcluidas(registoId: number) {
-    const tarefas = registosLimpezaTarefas.filter((t) => t.registo_limpeza_id === registoId)
+  function contarTarefasConcluidas(registoId: number, fonte: 'hoje' | '7d' = 'hoje') {
+    const lista = fonte === 'hoje' ? registosLimpezaTarefas : registosLimpezaTarefas7d
+    const tarefas = lista.filter((t) => t.registo_limpeza_id === registoId)
     const concluidas = tarefas.filter((t) => t.concluida).length
     return { concluidas, total: tarefas.length }
   }
@@ -773,7 +911,6 @@ export default function HaccpHome() {
     setEspacoLimpezaSel(esp)
     setFormLimpezaStaff('')
     setFormLimpezaObs('')
-    // Começa todas as checkboxes desligadas
     const tarefas = tarefasPorEspaco[esp.id] || []
     const init: Record<number, boolean> = {}
     tarefas.forEach((t) => { init[t.id] = false })
@@ -820,59 +957,148 @@ export default function HaccpHome() {
       }
     }
     await carregarRegistosLimpezaHoje(instalacaoSel.id)
+    await carregarRegistosLimpeza7d(filtroLimpezaDataInicio, filtroLimpezaDataFim)
     fecharModalLimpeza()
     setAGuardarLimpeza(false)
   }
 
-  async function abrirModalHistoricoLimpeza() {
-    if (!instalacaoSel) return
-    const hoje = obterDataHoje()
-    const ha7 = new Date(); ha7.setDate(ha7.getDate() - 7)
-    const data7 = `${ha7.getFullYear()}-${String(ha7.getMonth() + 1).padStart(2, '0')}-${String(ha7.getDate()).padStart(2, '0')}`
-    setFiltroLimpezaDataInicio(data7); setFiltroLimpezaDataFim(hoje)
-    setModalHistoricoLimpezaAberto(true)
-    await carregarHistoricoLimpeza(data7, hoje)
+  // Modal "à posteriori" / Edição (gestor)
+  function abrirModalLimpezaPostNovo() {
+    if (!ehGestor) return
+    setRegistoLimpezaEmEdicao(null)
+    setFormPostLimpData(obterDataHoje())
+    setFormPostLimpHora(obterHoraAgora().substring(0, 5))
+    const espId = espacos[0]?.id || ''
+    setFormPostLimpEspId(espId)
+    setFormPostLimpStaff('')
+    setFormPostLimpObs('')
+    if (espId) {
+      const tarefas = tarefasPorEspaco[espId as number] || []
+      const init: Record<number, boolean> = {}
+      tarefas.forEach((t) => { init[t.id] = false })
+      setFormPostLimpTarefas(init)
+    } else {
+      setFormPostLimpTarefas({})
+    }
+    setModalLimpezaPostAberto(true)
   }
 
-  async function carregarHistoricoLimpeza(dataInicio: string, dataFim: string) {
-    if (!instalacaoSel) return
-    setACarregarHistoricoLimpeza(true)
-    const espIds = espacos.map((e) => e.id)
-    if (espIds.length === 0) {
-      setHistoricoLimpezaRegistos([]); setHistoricoLimpezaTarefas([]); setACarregarHistoricoLimpeza(false); return
-    }
-    const { data: regData } = await supabase
-      .from('haccp_registos_limpeza').select('*')
-      .gte('data_registo', dataInicio).lte('data_registo', dataFim)
-      .in('espaco_id', espIds)
-      .order('data_registo', { ascending: false }).order('hora_registo', { ascending: false })
-    const registos = (regData as RegistoLimpeza[]) || []
-    setHistoricoLimpezaRegistos(registos)
-    if (registos.length > 0) {
-      const regIds = registos.map((r) => r.id)
-      const { data: tarData } = await supabase
-        .from('haccp_registos_limpeza_tarefas').select('*').in('registo_limpeza_id', regIds)
-      setHistoricoLimpezaTarefas((tarData as RegistoLimpezaTarefa[]) || [])
+  function abrirModalLimpezaPostEditar(reg: RegistoLimpeza) {
+    if (!ehGestor) return
+    setRegistoLimpezaEmEdicao(reg)
+    setFormPostLimpData(reg.data_registo)
+    setFormPostLimpHora(reg.hora_registo ? reg.hora_registo.substring(0, 5) : obterHoraAgora().substring(0, 5))
+    setFormPostLimpEspId(reg.espaco_id)
+    setFormPostLimpStaff(reg.nome_staff)
+    setFormPostLimpObs(reg.observacoes || '')
+    const tarefas = tarefasPorEspaco[reg.espaco_id] || []
+    const tarefasDoReg = registosLimpezaTarefas7d.filter((t) => t.registo_limpeza_id === reg.id)
+    const init: Record<number, boolean> = {}
+    tarefas.forEach((t) => {
+      const lt = tarefasDoReg.find((rt) => rt.tarefa_id === t.id)
+      init[t.id] = lt ? !!lt.concluida : false
+    })
+    setFormPostLimpTarefas(init)
+    setModalLimpezaPostAberto(true)
+  }
+
+  function fecharModalLimpezaPost() {
+    setModalLimpezaPostAberto(false)
+    setRegistoLimpezaEmEdicao(null)
+  }
+
+  function aoMudarEspacoNoFormPost(novoEspId: number) {
+    setFormPostLimpEspId(novoEspId)
+    const tarefas = tarefasPorEspaco[novoEspId] || []
+    const init: Record<number, boolean> = {}
+    tarefas.forEach((t) => { init[t.id] = false })
+    setFormPostLimpTarefas(init)
+  }
+
+  function togglePostTarefa(tarefaId: number) {
+    setFormPostLimpTarefas((prev) => ({ ...prev, [tarefaId]: !prev[tarefaId] }))
+  }
+
+  async function guardarRegistoLimpezaPost() {
+    if (!ehGestor || !instalacaoSel) return
+    if (!formPostLimpData) { alert('Escolhe a data.'); return }
+    if (!formPostLimpEspId) { alert('Escolhe o espaço.'); return }
+    if (!formPostLimpStaff.trim()) { alert('Seleciona o funcionário.'); return }
+    if (!formPostLimpHora) { alert('Introduz a hora.'); return }
+    setAGuardarPostLimp(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const horaCompleta = formPostLimpHora.length === 5 ? `${formPostLimpHora}:00` : formPostLimpHora
+
+    if (registoLimpezaEmEdicao) {
+      // Editar registo existente
+      const { error: regError } = await supabase
+        .from('haccp_registos_limpeza')
+        .update({
+          espaco_id: formPostLimpEspId,
+          data_registo: formPostLimpData,
+          hora_registo: horaCompleta,
+          observacoes: formPostLimpObs.trim() || null,
+          nome_staff: formPostLimpStaff.trim(),
+        })
+        .eq('id', registoLimpezaEmEdicao.id)
+      if (regError) {
+        if (regError.code === '23505') alert('Já existe um registo de limpeza para este espaço nesta data.')
+        else alert('Erro ao atualizar o registo.')
+        setAGuardarPostLimp(false); return
+      }
+      // Apagar tarefas antigas e inserir novas
+      await supabase.from('haccp_registos_limpeza_tarefas').delete().eq('registo_limpeza_id', registoLimpezaEmEdicao.id)
+      const tarefas = tarefasPorEspaco[formPostLimpEspId as number] || []
+      if (tarefas.length > 0) {
+        const linhasTarefas = tarefas.map((t) => ({
+          registo_limpeza_id: registoLimpezaEmEdicao.id,
+          tarefa_id: t.id,
+          concluida: !!formPostLimpTarefas[t.id],
+        }))
+        await supabase.from('haccp_registos_limpeza_tarefas').insert(linhasTarefas)
+      }
     } else {
-      setHistoricoLimpezaTarefas([])
+      // Criar novo
+      const { data: regData, error: regError } = await supabase
+        .from('haccp_registos_limpeza')
+        .insert([{
+          espaco_id: formPostLimpEspId,
+          data_registo: formPostLimpData,
+          hora_registo: horaCompleta,
+          observacoes: formPostLimpObs.trim() || null,
+          nome_staff: formPostLimpStaff.trim(),
+          user_id: user?.id || null,
+        }])
+        .select().single()
+      if (regError) {
+        if (regError.code === '23505') alert('Já existe um registo de limpeza para este espaço nesta data.')
+        else alert('Erro ao guardar o registo.')
+        setAGuardarPostLimp(false); return
+      }
+      const tarefas = tarefasPorEspaco[formPostLimpEspId as number] || []
+      if (tarefas.length > 0) {
+        const linhasTarefas = tarefas.map((t) => ({
+          registo_limpeza_id: regData.id,
+          tarefa_id: t.id,
+          concluida: !!formPostLimpTarefas[t.id],
+        }))
+        await supabase.from('haccp_registos_limpeza_tarefas').insert(linhasTarefas)
+      }
     }
-    setACarregarHistoricoLimpeza(false)
+    await carregarRegistosLimpezaHoje(instalacaoSel.id)
+    await carregarRegistosLimpeza7d(filtroLimpezaDataInicio, filtroLimpezaDataFim)
+    fecharModalLimpezaPost()
+    setAGuardarPostLimp(false)
   }
 
   // ===== LAVAGEM HORTOFRUTÍCOLAS =====
   async function carregarRegistosLavagem(dataInicio: string, dataFim: string) {
     if (!instalacaoSel) return
     setACarregarLavagem(true)
-
-    // 1. Buscar produções da loja
     const { data: producoes } = await supabase
-      .from('producoes_semanais')
-      .select('id')
-      .eq('instalacao_id', instalacaoSel.id)
+      .from('producoes_semanais').select('id').eq('instalacao_id', instalacaoSel.id)
     const producaoIds = ((producoes as any[]) || []).map((p) => p.id)
     if (producaoIds.length === 0) { setRegistosLavagem([]); setACarregarLavagem(false); return }
-
-    // 2. Buscar registos de desinfeção concluídos no intervalo
     const dataInicioISO = `${dataInicio}T00:00:00`
     const dataFimISO = `${dataFim}T23:59:59`
     const { data: regDes } = await supabase
@@ -880,27 +1106,19 @@ export default function HaccpHome() {
       .select('id, atualizado_em, tarefa_preparacao_id, quantidade_desinfectante_ml, litros_agua, tempo_minutos, nome_staff, concluido')
       .in('producao_semanal_id', producaoIds)
       .eq('concluido', true)
-      .gte('atualizado_em', dataInicioISO)
-      .lte('atualizado_em', dataFimISO)
+      .gte('atualizado_em', dataInicioISO).lte('atualizado_em', dataFimISO)
       .order('atualizado_em', { ascending: false })
     const desinfeccoes = (regDes as any[]) || []
     if (desinfeccoes.length === 0) { setRegistosLavagem([]); setACarregarLavagem(false); return }
-
-    // 3. Buscar as tarefas de preparação para descobrir o componente_ingrediente
     const tarefaIds = desinfeccoes.map((d) => d.tarefa_preparacao_id)
     const { data: tarefas } = await supabase
-      .from('tarefas_preparacao_novo')
-      .select('id, componente_ingrediente_id')
-      .in('id', tarefaIds)
+      .from('tarefas_preparacao_novo').select('id, componente_ingrediente_id').in('id', tarefaIds)
     const tarefasMap = new Map<number, number>()
     ;((tarefas as any[]) || []).forEach((t) => tarefasMap.set(t.id, t.componente_ingrediente_id))
-
-    // 4. Buscar componente_ingredientes para descobrir ingrediente e componente
     const ciIds = Array.from(new Set(Array.from(tarefasMap.values())))
     const { data: cis } = await supabase
       .from('componente_ingredientes')
-      .select('id, componente_id, ingredientes (nome), componentes (nome)')
-      .in('id', ciIds)
+      .select('id, componente_id, ingredientes (nome), componentes (nome)').in('id', ciIds)
     const ciMap = new Map<number, { ingredienteNome: string; componenteNome: string; componenteId: number }>()
     ;((cis as any[]) || []).forEach((ci) => {
       ciMap.set(ci.id, {
@@ -909,13 +1127,9 @@ export default function HaccpHome() {
         componenteId: ci.componente_id,
       })
     })
-
-    // 5. Buscar pratos que usam esses componentes
     const componenteIds = Array.from(new Set(Array.from(ciMap.values()).map((v) => v.componenteId)))
     const { data: pcs } = await supabase
-      .from('pratos_componentes')
-      .select('componente_id, pratos (nome)')
-      .in('componente_id', componenteIds)
+      .from('pratos_componentes').select('componente_id, pratos (nome)').in('componente_id', componenteIds)
     const pratosPorComponente = new Map<number, string[]>()
     ;((pcs as any[]) || []).forEach((pc) => {
       const arr = pratosPorComponente.get(pc.componente_id) || []
@@ -923,15 +1137,12 @@ export default function HaccpHome() {
       if (nome && !arr.includes(nome)) arr.push(nome)
       pratosPorComponente.set(pc.componente_id, arr)
     })
-
-    // 6. Montar resultado
     const resultado: RegistoLavagem[] = desinfeccoes.map((d) => {
       const ciId = tarefasMap.get(d.tarefa_preparacao_id)
       const ciInfo = ciId ? ciMap.get(ciId) : null
       const pratosArr = ciInfo ? (pratosPorComponente.get(ciInfo.componenteId) || []) : []
       return {
-        id: d.id,
-        atualizado_em: d.atualizado_em,
+        id: d.id, atualizado_em: d.atualizado_em,
         ingrediente_nome: ciInfo?.ingredienteNome || '—',
         componente_nome: ciInfo?.componenteNome || '—',
         prato_nome: pratosArr.join(', ') || '—',
@@ -949,16 +1160,10 @@ export default function HaccpHome() {
   async function carregarRegistosConfeccao(dataInicio: string, dataFim: string) {
     if (!instalacaoSel) return
     setACarregarConfeccao(true)
-
-    // 1. Buscar produções da loja
     const { data: producoes } = await supabase
-      .from('producoes_semanais')
-      .select('id')
-      .eq('instalacao_id', instalacaoSel.id)
+      .from('producoes_semanais').select('id').eq('instalacao_id', instalacaoSel.id)
     const producaoIds = ((producoes as any[]) || []).map((p) => p.id)
     if (producaoIds.length === 0) { setRegistosConfeccao([]); setACarregarConfeccao(false); return }
-
-    // 2. Buscar registos de confeção (setor='confeccao') no intervalo
     const dataInicioISO = `${dataInicio}T00:00:00`
     const dataFimISO = `${dataFim}T23:59:59`
     const { data: regs } = await supabase
@@ -966,26 +1171,17 @@ export default function HaccpHome() {
       .select('id, atualizado_em, referencia_id, quantidade_final, temperatura_confeccao, temperatura_abatimento, tempo_arrefecimento, nome_staff, impressao_etiqueta')
       .in('producao_semanal_id', producaoIds)
       .eq('setor', 'confeccao')
-      .gte('atualizado_em', dataInicioISO)
-      .lte('atualizado_em', dataFimISO)
+      .gte('atualizado_em', dataInicioISO).lte('atualizado_em', dataFimISO)
       .order('atualizado_em', { ascending: false })
     const confs = (regs as any[]) || []
     if (confs.length === 0) { setRegistosConfeccao([]); setACarregarConfeccao(false); return }
-
-    // 3. Buscar componentes (referencia_id é o componente_id na confeção)
     const componenteIds = Array.from(new Set(confs.map((c) => c.referencia_id)))
     const { data: comps } = await supabase
-      .from('componentes')
-      .select('id, nome, unidade_rendimento')
-      .in('id', componenteIds)
+      .from('componentes').select('id, nome, unidade_rendimento').in('id', componenteIds)
     const compMap = new Map<number, { nome: string; unidade_rendimento: string | null }>()
     ;((comps as any[]) || []).forEach((c) => compMap.set(c.id, { nome: c.nome, unidade_rendimento: c.unidade_rendimento }))
-
-    // 4. Buscar pratos destino de cada componente
     const { data: pcs } = await supabase
-      .from('pratos_componentes')
-      .select('componente_id, pratos (nome)')
-      .in('componente_id', componenteIds)
+      .from('pratos_componentes').select('componente_id, pratos (nome)').in('componente_id', componenteIds)
     const pratosPorComponente = new Map<number, string[]>()
     ;((pcs as any[]) || []).forEach((pc) => {
       const arr = pratosPorComponente.get(pc.componente_id) || []
@@ -993,14 +1189,11 @@ export default function HaccpHome() {
       if (nome && !arr.includes(nome)) arr.push(nome)
       pratosPorComponente.set(pc.componente_id, arr)
     })
-
-    // 5. Montar resultado
     const resultado: RegistoConfeccao[] = confs.map((c) => {
       const compInfo = compMap.get(c.referencia_id)
       const pratosArr = pratosPorComponente.get(c.referencia_id) || []
       return {
-        id: c.id,
-        atualizado_em: c.atualizado_em,
+        id: c.id, atualizado_em: c.atualizado_em,
         componente_nome: compInfo?.nome || '—',
         pratos_destino: pratosArr.join(', ') || '—',
         quantidade_final: c.quantidade_final !== null ? Number(c.quantidade_final) : null,
@@ -1020,55 +1213,38 @@ export default function HaccpHome() {
     if (!instalacaoSel) return
     setACarregarRececao(true)
     const { data, error } = await supabase
-      .from('haccp_rececoes_mercadoria')
-      .select('*')
+      .from('haccp_rececoes_mercadoria').select('*')
       .eq('instalacao_id', instalacaoSel.id)
-      .gte('data_registo', dataInicio)
-      .lte('data_registo', dataFim)
-      .order('data_registo', { ascending: false })
-      .order('hora_registo', { ascending: false })
+      .gte('data_registo', dataInicio).lte('data_registo', dataFim)
+      .order('data_registo', { ascending: false }).order('hora_registo', { ascending: false })
     if (!error) setRegistosRececao((data as RegistoRececao[]) || [])
     setACarregarRececao(false)
   }
 
   async function pesquisarIngredientes(texto: string) {
-    if (texto.trim().length < 2) {
-      setSugestoesIngredientes([])
-      return
-    }
+    if (texto.trim().length < 2) { setSugestoesIngredientes([]); return }
     setACarregarSugestoes(true)
     const { data, error } = await supabase
-      .from('ingredientes')
-      .select('id, nome, categoria, nome_fornecedor')
-      .ilike('nome', `%${texto.trim()}%`)
-      .order('nome', { ascending: true })
-      .limit(10)
+      .from('ingredientes').select('id, nome, categoria, nome_fornecedor')
+      .ilike('nome', `%${texto.trim()}%`).order('nome', { ascending: true }).limit(10)
     if (!error) setSugestoesIngredientes((data as IngredienteSugestao[]) || [])
     setACarregarSugestoes(false)
   }
 
   function abrirModalNovaRececao() {
     setRegistoRececaoEmEdicao(null)
-    setIngredienteSelecionado(null)
-    setPesquisaIngrediente('')
-    setSugestoesIngredientes([])
-    setFormRececaoLote('')
-    setFormRececaoTemp(4)
-    setFormRececaoStaff('')
-    setFormRececaoObs('')
+    setIngredienteSelecionado(null); setPesquisaIngrediente(''); setSugestoesIngredientes([])
+    setFormRececaoLote(''); setFormRececaoTemp(4); setFormRececaoStaff(''); setFormRececaoObs('')
     setModalRececaoAberto(true)
   }
 
   function abrirModalEditarRececao(reg: RegistoRececao) {
     setRegistoRececaoEmEdicao(reg)
     setIngredienteSelecionado({
-      id: reg.ingrediente_id,
-      nome: reg.produto_nome,
-      categoria: reg.categoria,
-      nome_fornecedor: reg.fornecedor_nome,
+      id: reg.ingrediente_id, nome: reg.produto_nome,
+      categoria: reg.categoria, nome_fornecedor: reg.fornecedor_nome,
     })
-    setPesquisaIngrediente('')
-    setSugestoesIngredientes([])
+    setPesquisaIngrediente(''); setSugestoesIngredientes([])
     setFormRececaoLote(reg.lote || '')
     setFormRececaoTemp(Number(reg.temperatura_chegada))
     setFormRececaoStaff(reg.nome_staff)
@@ -1077,49 +1253,36 @@ export default function HaccpHome() {
   }
 
   function fecharModalRececao() {
-    setModalRececaoAberto(false)
-    setRegistoRececaoEmEdicao(null)
-    setIngredienteSelecionado(null)
+    setModalRececaoAberto(false); setRegistoRececaoEmEdicao(null); setIngredienteSelecionado(null)
   }
 
   function selecionarIngrediente(ing: IngredienteSugestao) {
-    setIngredienteSelecionado(ing)
-    setPesquisaIngrediente('')
-    setSugestoesIngredientes([])
+    setIngredienteSelecionado(ing); setPesquisaIngrediente(''); setSugestoesIngredientes([])
   }
 
   async function guardarRegistoRececao() {
     if (!instalacaoSel) return
     if (!ingredienteSelecionado) { alert('Seleciona um produto.'); return }
     if (!ingredienteSelecionado.nome_fornecedor) {
-      alert('Este produto não tem fornecedor cadastrado. Atualiza o ingrediente antes de registar a receção.')
-      return
+      alert('Este produto não tem fornecedor cadastrado. Atualiza o ingrediente antes de registar a receção.'); return
     }
     const staffNome = formRececaoStaff.trim()
     if (!staffNome) { alert('Seleciona o funcionário.'); return }
-
     setAGuardarRececao(true)
     const { data: { user } } = await supabase.auth.getUser()
-
     if (registoRececaoEmEdicao) {
       const podeEditar = ehGestor || registoRececaoEmEdicao.user_id === user?.id
-      if (!podeEditar) {
-        alert('Não tens permissão para editar este registo.')
-        setAGuardarRececao(false); return
-      }
-      const { error } = await supabase
-        .from('haccp_rececoes_mercadoria')
-        .update({
-          ingrediente_id: ingredienteSelecionado.id,
-          produto_nome: ingredienteSelecionado.nome,
-          categoria: ingredienteSelecionado.categoria,
-          fornecedor_nome: ingredienteSelecionado.nome_fornecedor,
-          lote: formRececaoLote.trim() || null,
-          temperatura_chegada: formRececaoTemp,
-          nome_staff: staffNome,
-          observacoes: formRececaoObs.trim() || null,
-        })
-        .eq('id', registoRececaoEmEdicao.id)
+      if (!podeEditar) { alert('Não tens permissão para editar este registo.'); setAGuardarRececao(false); return }
+      const { error } = await supabase.from('haccp_rececoes_mercadoria').update({
+        ingrediente_id: ingredienteSelecionado.id,
+        produto_nome: ingredienteSelecionado.nome,
+        categoria: ingredienteSelecionado.categoria,
+        fornecedor_nome: ingredienteSelecionado.nome_fornecedor,
+        lote: formRececaoLote.trim() || null,
+        temperatura_chegada: formRececaoTemp,
+        nome_staff: staffNome,
+        observacoes: formRececaoObs.trim() || null,
+      }).eq('id', registoRececaoEmEdicao.id)
       if (error) { alert('Erro ao atualizar o registo.'); setAGuardarRececao(false); return }
     } else {
       const { error } = await supabase.from('haccp_rececoes_mercadoria').insert([{
@@ -1188,7 +1351,6 @@ export default function HaccpHome() {
               </button>
             )}
           </div>
-
           {aCarregarInstalacoes ? (
             <p style={{ color: '#6b7280', fontSize: '14px' }}>A carregar...</p>
           ) : instalacoes.length === 0 ? (
@@ -1222,7 +1384,6 @@ export default function HaccpHome() {
             </div>
           )}
         </div>
-
         {ehGestor && renderModalGestaoInstalacoes()}
       </div>
     )
@@ -1232,7 +1393,6 @@ export default function HaccpHome() {
   return (
     <div style={{ minHeight: '100vh', background: '#f9fafb' }}>
       {barraTopo}
-
       <div style={{ padding: '32px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '24px' }}>
           <div>
@@ -1243,10 +1403,18 @@ export default function HaccpHome() {
               {instalacaoSel.morada || 'Controlo de segurança alimentar'}
             </p>
           </div>
-          <button onClick={trocarInstalacao}
-            style={{ background: '#fff', border: '1px solid #d1d5db', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', color: '#374151', cursor: 'pointer', fontWeight: '500' }}>
-            🔄 Trocar loja
-          </button>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {ehGestor && (
+              <button onClick={() => setModalConfigAberto(true)}
+                style={{ background: '#fff', border: '1px solid #d1d5db', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', color: '#374151', cursor: 'pointer', fontWeight: '500' }}>
+                ⚙️ Configurações
+              </button>
+            )}
+            <button onClick={trocarInstalacao}
+              style={{ background: '#fff', border: '1px solid #d1d5db', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', color: '#374151', cursor: 'pointer', fontWeight: '500' }}>
+              🔄 Trocar loja
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '32px' }}>
@@ -1271,263 +1439,33 @@ export default function HaccpHome() {
         {abaAtiva === 'rececao' && renderAbaRececao()}
         {abaAtiva === 'lavagem_horto' && renderAbaLavagemHorto()}
         {abaAtiva === 'confeccao_arref' && renderAbaConfeccaoArref()}
-
-        {ehGestor && renderSecaoStaff()}
       </div>
 
       {renderModalRegistoTemperatura()}
-      {renderModalHistoricoTemperatura()}
+      {renderModalNovoTempPost()}
       {ehGestor && renderModalGestaoInstalacoes()}
       {renderModalLimpeza()}
-      {renderModalHistoricoLimpeza()}
+      {renderModalLimpezaPost()}
       {renderModalRececao()}
+      {ehGestor && renderModalConfig()}
+      {ehGestor && renderModalEquipamentos()}
+      {ehGestor && renderModalEspacos()}
+      {ehGestor && renderModalFuncionarios()}
     </div>
   )
 
-  function renderAbaRececao() {
-    const fornecedoresUnicos = Array.from(new Set(registosRececao.map((r) => r.fornecedor_nome))).sort()
-    const registosFiltrados = filtroRececaoFornecedor
-      ? registosRececao.filter((r) => r.fornecedor_nome === filtroRececaoFornecedor)
-      : registosRececao
-
-    return (
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-          <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>📦 Receção de mercadorias</p>
-          <button onClick={abrirModalNovaRececao}
-            style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>
-            + Nova receção
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
-          <div>
-            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>De</label>
-            <input type="date" value={filtroRececaoDataInicio} onChange={(e) => setFiltroRececaoDataInicio(e.target.value)}
-              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
-          </div>
-          <div>
-            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Até</label>
-            <input type="date" value={filtroRececaoDataFim} onChange={(e) => setFiltroRececaoDataFim(e.target.value)}
-              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
-          </div>
-          <div>
-            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Fornecedor</label>
-            <select value={filtroRececaoFornecedor} onChange={(e) => setFiltroRececaoFornecedor(e.target.value)}
-              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff', minWidth: '180px' }}>
-              <option value="">— Todos —</option>
-              {fornecedoresUnicos.map((f) => (
-                <option key={f} value={f}>{f}</option>
-              ))}
-            </select>
-          </div>
-          <button onClick={() => carregarRegistosRececao(filtroRececaoDataInicio, filtroRececaoDataFim)}
-            style={{ background: '#374151', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Aplicar</button>
-        </div>
-
-        {aCarregarRececao ? (
-          <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
-        ) : registosFiltrados.length === 0 ? (
-          <p style={{ color: '#6b7280', fontSize: '13px' }}>Sem registos de receção no período selecionado.</p>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-              <thead>
-                <tr style={{ background: '#f3f4f6' }}>
-                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Data/Hora</th>
-                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Produto</th>
-                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Categoria</th>
-                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Fornecedor</th>
-                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Lote</th>
-                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Temp.</th>
-                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Receptor</th>
-                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Obs.</th>
-                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {registosFiltrados.map((r) => {
-                  const dataHora = `${r.data_registo} ${formatarHora(r.hora_registo)}`
-                  return (
-                    <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '8px 10px', color: '#111' }}>{dataHora}</td>
-                      <td style={{ padding: '8px 10px', color: '#111', fontWeight: '500' }}>{r.produto_nome}</td>
-                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.categoria || '—'}</td>
-                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.fornecedor_nome}</td>
-                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.lote || '—'}</td>
-                      <td style={{ padding: '8px 10px', fontWeight: '600', color: '#111' }}>{Number(r.temperatura_chegada).toFixed(1)}°C</td>
-                      <td style={{ padding: '8px 10px', color: '#111' }}>{r.nome_staff}</td>
-                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.observacoes || '—'}</td>
-                      <td style={{ padding: '8px 10px' }}>
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          <button onClick={() => abrirModalEditarRececao(r)}
-                            style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
-                          {ehGestor && (
-                            <button onClick={() => apagarRegistoRececao(r)}
-                              style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  function renderModalRececao() {
-    if (!modalRececaoAberto) return null
-    const semFornecedor = !!ingredienteSelecionado && !ingredienteSelecionado.nome_fornecedor
-    return (
-      <div onClick={(e) => { if (e.target === e.currentTarget) fecharModalRececao() }}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
-        <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '520px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-            <div>
-              <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: '0 0 2px' }}>
-                {registoRececaoEmEdicao ? 'Editar receção' : 'Nova receção de mercadoria'}
-              </p>
-              <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>{instalacaoSel?.nome} · {obterDataHoje()}</p>
-            </div>
-            <button onClick={fecharModalRececao} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕</button>
-          </div>
-
-          {/* Pesquisa de produto */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Produto *</label>
-            {ingredienteSelecionado ? (
-              <div style={{ border: semFornecedor ? '1px solid #fcd34d' : '1px solid #80c944', borderRadius: '8px', padding: '12px', background: semFornecedor ? '#fffbeb' : '#f0fdf4' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 4px' }}>{ingredienteSelecionado.nome}</p>
-                    <p style={{ fontSize: '12px', color: '#374151', margin: 0 }}>
-                      Categoria: <strong>{ingredienteSelecionado.categoria || '—'}</strong>
-                    </p>
-                    <p style={{ fontSize: '12px', color: semFornecedor ? '#92400e' : '#374151', margin: '2px 0 0' }}>
-                      Fornecedor: <strong>{ingredienteSelecionado.nome_fornecedor || 'Sem fornecedor cadastrado'}</strong>
-                    </p>
-                  </div>
-                  <button onClick={() => { setIngredienteSelecionado(null); setPesquisaIngrediente(''); }}
-                    style={{ background: 'transparent', border: 'none', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>Trocar</button>
-                </div>
-                {semFornecedor && (
-                  <p style={{ fontSize: '11px', color: '#92400e', margin: '8px 0 0', fontWeight: '500' }}>
-                    ⚠ Este produto não tem fornecedor cadastrado. Atualiza o ingrediente antes de registar a receção.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <>
-                <input type="text" value={pesquisaIngrediente}
-                  onChange={(e) => { setPesquisaIngrediente(e.target.value); pesquisarIngredientes(e.target.value) }}
-                  placeholder="Pesquisa por nome (mín. 2 caracteres)..."
-                  style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
-                {aCarregarSugestoes && <p style={{ fontSize: '11px', color: '#6b7280', margin: '4px 0 0' }}>A pesquisar...</p>}
-                {sugestoesIngredientes.length > 0 && (
-                  <div style={{ border: '1px solid #e5e7eb', borderRadius: '6px', marginTop: '6px', maxHeight: '240px', overflowY: 'auto' }}>
-                    {sugestoesIngredientes.map((ing) => (
-                      <button key={ing.id} onClick={() => selecionarIngrediente(ing)}
-                        style={{ display: 'block', width: '100%', textAlign: 'left', background: '#fff', border: 'none', borderBottom: '1px solid #f3f4f6', padding: '8px 12px', cursor: 'pointer' }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}>
-                        <p style={{ fontSize: '13px', fontWeight: '500', color: '#111', margin: 0 }}>{ing.nome}</p>
-                        <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0' }}>
-                          {ing.categoria || 'sem categoria'} · {ing.nome_fornecedor || 'sem fornecedor'}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {pesquisaIngrediente.trim().length >= 2 && !aCarregarSugestoes && sugestoesIngredientes.length === 0 && (
-                  <p style={{ fontSize: '12px', color: '#9ca3af', margin: '6px 0 0' }}>Nenhum produto encontrado.</p>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Lote */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Lote (opcional)</label>
-            <input type="text" value={formRececaoLote} onChange={(e) => setFormRececaoLote(e.target.value)}
-              placeholder="ex: L20260505-A"
-              style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
-          </div>
-
-          {/* Temperatura */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '8px' }}>Temperatura de chegada</label>
-            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '36px', fontWeight: '700', color: '#111' }}>{formRececaoTemp}°C</span>
-            </div>
-            <input type="range" min={-25} max={25} step={0.5} value={formRececaoTemp}
-              onChange={(e) => setFormRececaoTemp(Number(e.target.value))}
-              style={{ width: '100%', accentColor: '#80c944' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
-              <span>-25°C</span><span>0°C</span><span>+25°C</span>
-            </div>
-          </div>
-
-          {/* Funcionário */}
-          <div style={{ marginBottom: '12px' }}>
-            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Receptor *</label>
-            {staff.length === 0 ? (
-              <div style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', color: '#92400e' }}>
-                Ainda não há funcionários nesta loja. {ehGestor ? 'Adiciona-os na secção "Funcionários" abaixo.' : 'Pede a um gestor para os adicionar.'}
-              </div>
-            ) : (
-              <select value={formRececaoStaff} onChange={(e) => setFormRececaoStaff(e.target.value)}
-                style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
-                <option value="">— Seleciona quem recebeu —</option>
-                {staff.map((s) => (
-                  <option key={s.id} value={s.nome}>{s.nome}</option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {/* Observações */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Observações (opcional)</label>
-            <textarea value={formRececaoObs} onChange={(e) => setFormRececaoObs(e.target.value)} rows={2}
-              style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff', resize: 'vertical' }} />
-          </div>
-
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={guardarRegistoRececao}
-              disabled={aGuardarRececao || !ingredienteSelecionado || semFornecedor || staff.length === 0}
-              style={{
-                background: (!ingredienteSelecionado || semFornecedor || staff.length === 0) ? '#d1d5db' : '#80c944',
-                color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500',
-                cursor: (!ingredienteSelecionado || semFornecedor || staff.length === 0) ? 'not-allowed' : 'pointer'
-              }}>
-              {aGuardarRececao ? 'A guardar...' : (registoRececaoEmEdicao ? 'Atualizar' : 'Guardar registo')}
-            </button>
-            <button onClick={fecharModalRececao} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // ===== RENDERS =====
+  // ===================== RENDERS =====================
 
   function renderAbaTemperaturas() {
     return (
       <>
         <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-            <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>🌡️ Registos de hoje <span style={{ fontWeight: '400', color: '#6b7280', fontSize: '13px' }}>({obterDataHoje()})</span></p>
-            <button onClick={abrirModalHistorico} style={{ background: '#374151', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>📊 Ver histórico</button>
-          </div>
+          <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: '0 0 16px' }}>🌡️ Registos de hoje <span style={{ fontWeight: '400', color: '#6b7280', fontSize: '13px' }}>({obterDataHoje()})</span></p>
           {aCarregarRegistos || aCarregarEquipamentos ? (
             <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
           ) : equipamentos.length === 0 ? (
             <p style={{ color: '#6b7280', fontSize: '13px' }}>
-              {ehGestor ? 'Ainda não há equipamentos nesta loja. Cria um em baixo.' : 'Ainda não há equipamentos nesta loja. Pede a um gestor para os criar.'}
+              {ehGestor ? 'Ainda não há equipamentos. Adiciona-os em "⚙️ Configurações".' : 'Ainda não há equipamentos. Pede a um gestor para os criar.'}
             </p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
@@ -1561,77 +1499,68 @@ export default function HaccpHome() {
           )}
         </div>
 
-        {ehGestor && (
-          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>⚙️ Equipamentos</p>
-              {!novoEquipamentoAberto && !equipamentoEmEdicao && (
-                <button onClick={abrirFormNovoEquipamento} style={{ background: '#80c944', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>+ Novo equipamento</button>
-              )}
-            </div>
-
-            {(novoEquipamentoAberto || equipamentoEmEdicao) && (
-              <div style={{ border: '2px solid #80c944', borderRadius: '10px', padding: '16px', marginBottom: '16px', background: '#f9fafb' }}>
-                <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 12px' }}>{equipamentoEmEdicao ? 'Editar equipamento' : 'Novo equipamento'}</p>
-                <div style={{ display: 'grid', gap: '10px' }}>
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome *</label>
-                    <input type="text" value={formEquipNome} onChange={(e) => setFormEquipNome(e.target.value)}
-                      placeholder="ex: Frigorífico positivo cozinha"
-                      style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Descrição (opcional)</label>
-                    <input type="text" value={formEquipDescricao} onChange={(e) => setFormEquipDescricao(e.target.value)}
-                      placeholder="ex: Carnes e peixes"
-                      style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <div>
-                      <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Temp. mínima aceitável (°C)</label>
-                      <input type="number" value={formEquipMin} onChange={(e) => setFormEquipMin(Number(e.target.value))}
-                        style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Temp. máxima aceitável (°C)</label>
-                      <input type="number" value={formEquipMax} onChange={(e) => setFormEquipMax(Number(e.target.value))}
-                        style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                    <button onClick={guardarEquipamento} disabled={aGuardarEquip}
-                      style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
-                      {aGuardarEquip ? 'A guardar...' : 'Guardar'}
-                    </button>
-                    <button onClick={fecharFormEquipamento} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {equipamentos.length === 0 ? (
-              <p style={{ color: '#6b7280', fontSize: '13px' }}>Ainda não há equipamentos nesta loja.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {equipamentos.map((equip) => (
-                  <div key={equip.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px 14px' }}>
-                    <div>
-                      <p style={{ fontSize: '14px', fontWeight: '500', color: '#111', margin: 0 }}>{equip.nome}</p>
-                      <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0' }}>
-                        {equip.temp_min_aceitavel}°C a {equip.temp_max_aceitavel}°C
-                        {equip.descricao && ` · ${equip.descricao}`}
-                      </p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button onClick={() => abrirFormEditarEquipamento(equip)} style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
-                      <button onClick={() => apagarEquipamento(equip)} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+            <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>📊 Histórico de registos</p>
+            {ehGestor && (
+              <button onClick={abrirModalNovoTempPost}
+                style={{ background: '#80c944', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>
+                + Novo registo (à posteriori)
+              </button>
             )}
           </div>
-        )}
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
+            <div>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>De</label>
+              <input type="date" value={filtroTempDataInicio} onChange={(e) => setFiltroTempDataInicio(e.target.value)}
+                style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Até</label>
+              <input type="date" value={filtroTempDataFim} onChange={(e) => setFiltroTempDataFim(e.target.value)}
+                style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+            </div>
+            <button onClick={() => carregarRegistosTemp7d(filtroTempDataInicio, filtroTempDataFim)}
+              style={{ background: '#374151', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Aplicar</button>
+          </div>
+          {aCarregarRegistosTemp7d ? (
+            <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
+          ) : registosTemp7d.length === 0 ? (
+            <p style={{ color: '#6b7280', fontSize: '13px' }}>Sem registos no período selecionado.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ background: '#f3f4f6' }}>
+                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Data</th>
+                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Período</th>
+                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Equipamento</th>
+                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Temp.</th>
+                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Staff</th>
+                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Obs.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {registosTemp7d.map((r) => {
+                    const equip = equipamentos.find((e) => e.id === r.equipamento_id)
+                    return (
+                      <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                        <td style={{ padding: '8px 10px', color: '#111' }}>{r.data_registo}</td>
+                        <td style={{ padding: '8px 10px', color: '#111' }}>{r.periodo === 'manha' ? 'Manhã' : 'Tarde'}</td>
+                        <td style={{ padding: '8px 10px', color: '#111' }}>{equip?.nome || '—'}</td>
+                        <td style={{ padding: '8px 10px', fontWeight: '600', color: r.conforme ? '#16a34a' : '#dc2626' }}>
+                          {r.temperatura}°C {r.conforme ? '✓' : '⚠'}
+                        </td>
+                        <td style={{ padding: '8px 10px', color: '#111' }}>{r.nome_staff}</td>
+                        <td style={{ padding: '8px 10px', color: '#374151' }}>{r.observacoes || '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </>
     )
   }
@@ -1639,17 +1568,13 @@ export default function HaccpHome() {
   function renderAbaLimpeza() {
     return (
       <>
-        {/* Registos de hoje */}
         <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-            <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>🧽 Registos de hoje <span style={{ fontWeight: '400', color: '#6b7280', fontSize: '13px' }}>({obterDataHoje()})</span></p>
-            <button onClick={abrirModalHistoricoLimpeza} style={{ background: '#374151', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>📊 Ver histórico</button>
-          </div>
+          <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: '0 0 16px' }}>🧽 Registos de hoje <span style={{ fontWeight: '400', color: '#6b7280', fontSize: '13px' }}>({obterDataHoje()})</span></p>
           {aCarregarRegistosLimpeza || aCarregarEspacos ? (
             <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
           ) : espacos.length === 0 ? (
             <p style={{ color: '#6b7280', fontSize: '13px' }}>
-              {ehGestor ? 'Ainda não há espaços nesta loja. Cria um em baixo.' : 'Ainda não há espaços nesta loja. Pede a um gestor para os criar.'}
+              {ehGestor ? 'Ainda não há espaços. Adiciona-os em "⚙️ Configurações".' : 'Ainda não há espaços. Pede a um gestor para os criar.'}
             </p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
@@ -1664,7 +1589,7 @@ export default function HaccpHome() {
                       {esp.descricao && ` · ${esp.descricao}`}
                     </p>
                     {reg ? (() => {
-                      const { concluidas, total } = contarTarefasConcluidas(reg.id)
+                      const { concluidas, total } = contarTarefasConcluidas(reg.id, 'hoje')
                       const tudoFeito = total > 0 && concluidas === total
                       return (
                         <div style={{ background: tudoFeito ? '#dcfce7' : '#fef3c7', borderRadius: '6px', padding: '8px 10px' }}>
@@ -1678,7 +1603,7 @@ export default function HaccpHome() {
                     })() : (
                       tarefas.length === 0 ? (
                         <p style={{ fontSize: '11px', color: '#9ca3af', fontStyle: 'italic', margin: 0 }}>
-                          {ehGestor ? 'Adiciona tarefas em baixo antes de registar' : 'Sem tarefas definidas. Pede a um gestor.'}
+                          {ehGestor ? 'Adiciona tarefas em "⚙️ Configurações"' : 'Sem tarefas definidas. Pede a um gestor.'}
                         </p>
                       ) : (
                         <button onClick={() => abrirModalLimpeza(esp)}
@@ -1694,218 +1619,99 @@ export default function HaccpHome() {
           )}
         </div>
 
-        {/* Espaços e tarefas - apenas visível a gestores */}
-        {ehGestor && (
-          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>🏠 Espaços e tarefas</p>
-              {!novoEspacoAberto && !espacoEmEdicao && (
-                <button onClick={abrirFormNovoEspaco} style={{ background: '#80c944', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>+ Novo espaço</button>
-              )}
-            </div>
-
-            {(novoEspacoAberto || espacoEmEdicao) && (
-              <div style={{ border: '2px solid #80c944', borderRadius: '10px', padding: '16px', marginBottom: '16px', background: '#f9fafb' }}>
-                <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 12px' }}>{espacoEmEdicao ? 'Editar espaço' : 'Novo espaço'}</p>
-                <div style={{ display: 'grid', gap: '10px' }}>
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome *</label>
-                    <input type="text" value={formEspNome} onChange={(e) => setFormEspNome(e.target.value)}
-                      placeholder="ex: Cozinha principal"
-                      style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Descrição (opcional)</label>
-                    <input type="text" value={formEspDescricao} onChange={(e) => setFormEspDescricao(e.target.value)}
-                      placeholder="ex: Zona quente e fria"
-                      style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                    <button onClick={guardarEspaco} disabled={aGuardarEspaco}
-                      style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
-                      {aGuardarEspaco ? 'A guardar...' : 'Guardar'}
-                    </button>
-                    <button onClick={fecharFormEspaco} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {espacos.length === 0 ? (
-              <p style={{ color: '#6b7280', fontSize: '13px' }}>Ainda não há espaços nesta loja.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {espacos.map((esp) => {
-                  const expandido = !!espacosExpandidos[esp.id]
-                  const tarefas = tarefasPorEspaco[esp.id] || []
-                  return (
-                    <div key={esp.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f9fafb', cursor: 'pointer' }} onClick={() => toggleExpandirEspaco(esp.id)}>
-                        <div style={{ flex: 1 }}>
-                          <p style={{ fontSize: '14px', fontWeight: '500', color: '#111', margin: 0 }}>
-                            {expandido ? '▼' : '▶'} {esp.nome}
-                            <span style={{ fontSize: '12px', color: '#6b7280', fontWeight: '400', marginLeft: '8px' }}>({tarefas.length})</span>
-                          </p>
-                          {esp.descricao && <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0 18px' }}>{esp.descricao}</p>}
-                        </div>
-                        <div style={{ display: 'flex', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
-                          <button onClick={() => abrirFormEditarEspaco(esp)} style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
-                          <button onClick={() => apagarEspaco(esp)} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
-                        </div>
-                      </div>
-                      {expandido && (
-                        <div style={{ padding: '12px 14px', borderTop: '1px solid #e5e7eb' }}>
-                          {tarefas.length === 0 ? (
-                            <p style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic', margin: '0 0 10px' }}>Sem tarefas. Adiciona a primeira em baixo.</p>
-                          ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
-                              {tarefas.map((t) => (
-                                <div key={t.id} style={{ padding: '8px 10px', background: '#fff', border: '1px solid #f3f4f6', borderRadius: '6px' }}>
-                                  {tarefaEmEdicaoId === t.id ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                      <div>
-                                        <label style={{ fontSize: '11px', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Tarefa</label>
-                                        <input type="text" value={formTarefaTexto} onChange={(e) => setFormTarefaTexto(e.target.value)}
-                                          placeholder="ex: Limpar bancadas"
-                                          style={{ width: '100%', border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff', boxSizing: 'border-box' }} />
-                                      </div>
-                                      <div>
-                                        <label style={{ fontSize: '11px', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Notas (periodicidade, detalhes)</label>
-                                        <textarea value={formTarefaNotas} onChange={(e) => setFormTarefaNotas(e.target.value)} rows={2}
-                                          placeholder="ex: Diário, antes do serviço. Usar desengordurante."
-                                          style={{ width: '100%', border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff', boxSizing: 'border-box', resize: 'vertical' }} />
-                                      </div>
-                                      <div style={{ display: 'flex', gap: '6px' }}>
-                                        <button onClick={() => guardarEdicaoTarefa(t.id)} style={{ background: '#80c944', color: '#fff', border: 'none', padding: '5px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Guardar</button>
-                                        <button onClick={cancelarEdicaoTarefa} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '5px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Cancelar</button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                                      <div style={{ flex: 1 }}>
-                                        <p style={{ fontSize: '13px', color: '#111', margin: 0 }}>• {t.tarefa}</p>
-                                        {t.notas && <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0 10px', fontStyle: 'italic' }}>📝 {t.notas}</p>}
-                                      </div>
-                                      <div style={{ display: 'flex', gap: '4px' }}>
-                                        <button onClick={() => iniciarEdicaoTarefa(t)} style={{ background: 'transparent', border: 'none', color: '#1e40af', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
-                                        <button onClick={() => apagarTarefa(t)} style={{ background: 'transparent', border: 'none', color: '#991b1b', fontSize: '12px', cursor: 'pointer' }}>×</button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px', background: '#f9fafb', borderRadius: '6px' }}>
-                            <p style={{ fontSize: '11px', color: '#6b7280', margin: 0, fontWeight: '500' }}>Adicionar nova tarefa</p>
-                            <input type="text" value={novaTarefaPorEspaco[esp.id] || ''}
-                              onChange={(e) => setNovaTarefaPorEspaco((prev) => ({ ...prev, [esp.id]: e.target.value }))}
-                              placeholder="Nome da tarefa..."
-                              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff', boxSizing: 'border-box' }} />
-                            <textarea value={novaTarefaNotasPorEspaco[esp.id] || ''}
-                              onChange={(e) => setNovaTarefaNotasPorEspaco((prev) => ({ ...prev, [esp.id]: e.target.value }))}
-                              placeholder="Notas (periodicidade, produtos a usar, detalhes...)"
-                              rows={2}
-                              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff', boxSizing: 'border-box', resize: 'vertical' }} />
-                            <button onClick={() => adicionarTarefa(esp.id)} disabled={aGuardarTarefa}
-                              style={{ background: '#80c944', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontWeight: '500', alignSelf: 'flex-start' }}>
-                              {aGuardarTarefa ? 'A guardar...' : '+ Adicionar tarefa'}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+            <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>📊 Histórico de registos</p>
+            {ehGestor && (
+              <button onClick={abrirModalLimpezaPostNovo}
+                style={{ background: '#80c944', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>
+                + Novo registo (à posteriori)
+              </button>
             )}
           </div>
-        )}
-      </>
-    )
-  }
-
-  function renderSecaoStaff() {
-    return (
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px', marginTop: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-          <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>👥 Funcionários</p>
-          {!novoStaffAberto && !staffEmEdicao && (
-            <button onClick={abrirFormNovoStaff} style={{ background: '#80c944', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>+ Novo funcionário</button>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
+            <div>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>De</label>
+              <input type="date" value={filtroLimpezaDataInicio} onChange={(e) => setFiltroLimpezaDataInicio(e.target.value)}
+                style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Até</label>
+              <input type="date" value={filtroLimpezaDataFim} onChange={(e) => setFiltroLimpezaDataFim(e.target.value)}
+                style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+            </div>
+            <button onClick={() => carregarRegistosLimpeza7d(filtroLimpezaDataInicio, filtroLimpezaDataFim)}
+              style={{ background: '#374151', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Aplicar</button>
+          </div>
+          {aCarregarRegistosLimpeza7d ? (
+            <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
+          ) : registosLimpeza7d.length === 0 ? (
+            <p style={{ color: '#6b7280', fontSize: '13px' }}>Sem registos no período selecionado.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {registosLimpeza7d.map((r) => {
+                const esp = espacos.find((e) => e.id === r.espaco_id)
+                const tarefasDoRegisto = registosLimpezaTarefas7d.filter((t) => t.registo_limpeza_id === r.id)
+                const concluidas = tarefasDoRegisto.filter((t) => t.concluida).length
+                const total = tarefasDoRegisto.length
+                const tudoFeito = total > 0 && concluidas === total
+                return (
+                  <div key={r.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                      <div>
+                        <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 2px' }}>{esp?.nome || '—'}</p>
+                        <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>{r.data_registo} · {formatarHora(r.hora_registo)} · {r.nome_staff}</p>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <span style={{
+                          fontSize: '12px', fontWeight: '600',
+                          color: tudoFeito ? '#166534' : '#92400e',
+                          background: tudoFeito ? '#dcfce7' : '#fef3c7',
+                          padding: '4px 10px', borderRadius: '99px',
+                        }}>
+                          {concluidas}/{total} tarefas {tudoFeito ? '✓' : '⚠'}
+                        </span>
+                        {ehGestor && (
+                          <button onClick={() => abrirModalLimpezaPostEditar(r)}
+                            style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>
+                            Editar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {tarefasDoRegisto.length > 0 && (
+                      <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {tarefasDoRegisto.map((t) => {
+                          const textoTarefa = (() => {
+                            for (const lista of Object.values(tarefasPorEspaco)) {
+                              const encontrada = lista.find((tt) => tt.id === t.tarefa_id)
+                              if (encontrada) return encontrada.tarefa
+                            }
+                            return `Tarefa #${t.tarefa_id}`
+                          })()
+                          return (
+                            <p key={t.id} style={{ fontSize: '12px', margin: 0, color: t.concluida ? '#166534' : '#9ca3af', textDecoration: t.concluida ? 'none' : 'line-through' }}>
+                              {t.concluida ? '✓' : '○'} {textoTarefa}
+                            </p>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {r.observacoes && <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '6px', fontStyle: 'italic' }}>Obs: {r.observacoes}</p>}
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
-
-        <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 14px' }}>
-          Estes nomes aparecem no menu ao registar temperaturas e limpezas.
-        </p>
-
-        {(novoStaffAberto || staffEmEdicao) && (
-          <div style={{ border: '2px solid #80c944', borderRadius: '10px', padding: '16px', marginBottom: '16px', background: '#f9fafb' }}>
-            <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 12px' }}>{staffEmEdicao ? 'Editar funcionário' : 'Novo funcionário'}</p>
-            <div style={{ display: 'grid', gap: '10px' }}>
-              <div>
-                <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome *</label>
-                <input type="text" value={formStaffNome} onChange={(e) => setFormStaffNome(e.target.value)}
-                  placeholder="ex: Maria Silva"
-                  style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
-              </div>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                <button onClick={guardarStaff} disabled={aGuardarStaff}
-                  style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
-                  {aGuardarStaff ? 'A guardar...' : 'Guardar'}
-                </button>
-                <button onClick={fecharFormStaff} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {aCarregarStaff ? (
-          <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
-        ) : staff.length === 0 ? (
-          <p style={{ color: '#6b7280', fontSize: '13px' }}>Ainda não há funcionários nesta loja.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {staff.map((s) => (
-              <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px 14px' }}>
-                <p style={{ fontSize: '14px', fontWeight: '500', color: '#111', margin: 0 }}>{s.nome}</p>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button onClick={() => abrirFormEditarStaff(s)} style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
-                  <button onClick={() => apagarStaff(s)} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Remover</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      </>
     )
-  }
-
-  function formatarDataHora(iso: string) {
-    if (!iso) return '—'
-    const d = new Date(iso)
-    const data = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
-    const hora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-    return `${data} ${hora}`
-  }
-
-  function formatarQtdConfeccao(valor: number | null, unidade: string | null) {
-    if (valor === null || valor === undefined) return '—'
-    const u = (unidade || 'kg').toLowerCase()
-    if (u === 'g') return `${Math.round(valor)} g`
-    if (u === 'ml') return `${Math.round(valor)} ml`
-    if (u === 'l') return `${valor.toFixed(1)} l`
-    if (u === 'un') return `${Math.round(valor)} un`
-    return `${valor.toFixed(1)} kg`
   }
 
   function renderAbaLavagemHorto() {
     return (
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-          <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>🥬 Lavagem de hortofrutícolas</p>
-        </div>
-
+        <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: '0 0 16px' }}>🥬 Lavagem de hortofrutícolas</p>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
           <div>
             <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>De</label>
@@ -1920,7 +1726,6 @@ export default function HaccpHome() {
           <button onClick={() => carregarRegistosLavagem(filtroLavagemDataInicio, filtroLavagemDataFim)}
             style={{ background: '#374151', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Aplicar</button>
         </div>
-
         {aCarregarLavagem ? (
           <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
         ) : registosLavagem.length === 0 ? (
@@ -1964,10 +1769,7 @@ export default function HaccpHome() {
   function renderAbaConfeccaoArref() {
     return (
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-          <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>🔥 Confeção e arrefecimento</p>
-        </div>
-
+        <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: '0 0 16px' }}>🔥 Confeção e arrefecimento</p>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
           <div>
             <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>De</label>
@@ -1982,7 +1784,6 @@ export default function HaccpHome() {
           <button onClick={() => carregarRegistosConfeccao(filtroConfeccaoDataInicio, filtroConfeccaoDataFim)}
             style={{ background: '#374151', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Aplicar</button>
         </div>
-
         {aCarregarConfeccao ? (
           <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
         ) : registosConfeccao.length === 0 ? (
@@ -2046,6 +1847,98 @@ export default function HaccpHome() {
     )
   }
 
+  function renderAbaRececao() {
+    const fornecedoresUnicos = Array.from(new Set(registosRececao.map((r) => r.fornecedor_nome))).sort()
+    const registosFiltrados = filtroRececaoFornecedor
+      ? registosRececao.filter((r) => r.fornecedor_nome === filtroRececaoFornecedor)
+      : registosRececao
+    return (
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+          <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>📦 Receção de mercadorias</p>
+          <button onClick={abrirModalNovaRececao}
+            style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>
+            + Nova receção
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>De</label>
+            <input type="date" value={filtroRececaoDataInicio} onChange={(e) => setFiltroRececaoDataInicio(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Até</label>
+            <input type="date" value={filtroRececaoDataFim} onChange={(e) => setFiltroRececaoDataFim(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Fornecedor</label>
+            <select value={filtroRececaoFornecedor} onChange={(e) => setFiltroRececaoFornecedor(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff', minWidth: '180px' }}>
+              <option value="">— Todos —</option>
+              {fornecedoresUnicos.map((f) => (
+                <option key={f} value={f}>{f}</option>
+              ))}
+            </select>
+          </div>
+          <button onClick={() => carregarRegistosRececao(filtroRececaoDataInicio, filtroRececaoDataFim)}
+            style={{ background: '#374151', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Aplicar</button>
+        </div>
+        {aCarregarRececao ? (
+          <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
+        ) : registosFiltrados.length === 0 ? (
+          <p style={{ color: '#6b7280', fontSize: '13px' }}>Sem registos de receção no período selecionado.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ background: '#f3f4f6' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Data/Hora</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Produto</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Categoria</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Fornecedor</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Lote</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Temp.</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Receptor</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Obs.</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {registosFiltrados.map((r) => {
+                  const dataHora = `${r.data_registo} ${formatarHora(r.hora_registo)}`
+                  return (
+                    <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '8px 10px', color: '#111' }}>{dataHora}</td>
+                      <td style={{ padding: '8px 10px', color: '#111', fontWeight: '500' }}>{r.produto_nome}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.categoria || '—'}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.fornecedor_nome}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.lote || '—'}</td>
+                      <td style={{ padding: '8px 10px', fontWeight: '600', color: '#111' }}>{Number(r.temperatura_chegada).toFixed(1)}°C</td>
+                      <td style={{ padding: '8px 10px', color: '#111' }}>{r.nome_staff}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.observacoes || '—'}</td>
+                      <td style={{ padding: '8px 10px' }}>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button onClick={() => abrirModalEditarRececao(r)}
+                            style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
+                          {ehGestor && (
+                            <button onClick={() => apagarRegistoRececao(r)}
+                              style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   function renderModalRegistoTemperatura() {
     if (!modalRegistoAberto || !equipamentoRegistoSel) return null
     return (
@@ -2059,7 +1952,6 @@ export default function HaccpHome() {
             </div>
             <button onClick={fecharModalRegisto} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕</button>
           </div>
-
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '8px' }}>
               Temperatura (aceitável: {equipamentoRegistoSel.temp_min_aceitavel}°C a {equipamentoRegistoSel.temp_max_aceitavel}°C)
@@ -2077,20 +1969,17 @@ export default function HaccpHome() {
               <span>-20°C</span><span>0°C</span><span>+20°C</span>
             </div>
           </div>
-
           <div style={{ marginBottom: '12px' }}>
             <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Funcionário *</label>
             {staff.length === 0 ? (
               <div style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', color: '#92400e' }}>
-                Ainda não há funcionários nesta loja. {ehGestor ? 'Adiciona-os na secção "Funcionários" abaixo.' : 'Pede a um gestor para os adicionar.'}
+                Ainda não há funcionários nesta loja. {ehGestor ? 'Adiciona-os em "⚙️ Configurações".' : 'Pede a um gestor para os adicionar.'}
               </div>
             ) : (
               <select value={formRegistoStaff} onChange={(e) => setFormRegistoStaff(e.target.value)}
                 style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
                 <option value="">— Seleciona quem fez o registo —</option>
-                {staff.map((s) => (
-                  <option key={s.id} value={s.nome}>{s.nome}</option>
-                ))}
+                {staff.map((s) => (<option key={s.id} value={s.nome}>{s.nome}</option>))}
               </select>
             )}
           </div>
@@ -2099,7 +1988,6 @@ export default function HaccpHome() {
             <textarea value={formRegistoObs} onChange={(e) => setFormRegistoObs(e.target.value)} rows={2}
               style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff', resize: 'vertical' }} />
           </div>
-
           <div style={{ display: 'flex', gap: '8px' }}>
             <button onClick={guardarRegistoTemperatura} disabled={aGuardarRegisto || staff.length === 0}
               style={{ background: staff.length === 0 ? '#d1d5db' : '#80c944', color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: staff.length === 0 ? 'not-allowed' : 'pointer' }}>
@@ -2112,69 +2000,80 @@ export default function HaccpHome() {
     )
   }
 
-  function renderModalHistoricoTemperatura() {
-    if (!modalHistoricoAberto) return null
+  function renderModalNovoTempPost() {
+    if (!modalNovoTempPostAberto) return null
+    const equipSel = equipamentos.find((e) => e.id === formPostTempEquipId)
+    const conforme = equipSel ? (formPostTempValor >= Number(equipSel.temp_min_aceitavel) && formPostTempValor <= Number(equipSel.temp_max_aceitavel)) : true
     return (
-      <div onClick={(e) => { if (e.target === e.currentTarget) setModalHistoricoAberto(false) }}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
-        <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '900px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
+      <div onClick={(e) => { if (e.target === e.currentTarget) fecharModalNovoTempPost() }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
+        <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '500px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-            <p style={{ fontSize: '18px', fontWeight: '600', color: '#111', margin: 0 }}>Histórico de temperaturas — {instalacaoSel?.nome}</p>
-            <button onClick={() => setModalHistoricoAberto(false)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕ Fechar</button>
+            <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>Novo registo de temperatura (à posteriori)</p>
+            <button onClick={fecharModalNovoTempPost} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕</button>
           </div>
-
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
-            <div>
-              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>De</label>
-              <input type="date" value={filtroHistDataInicio} onChange={(e) => setFiltroHistDataInicio(e.target.value)}
-                style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+          <div style={{ display: 'grid', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Data *</label>
+                <input type="date" value={formPostTempData} onChange={(e) => setFormPostTempData(e.target.value)}
+                  style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Período *</label>
+                <select value={formPostTempPeriodo} onChange={(e) => setFormPostTempPeriodo(e.target.value as 'manha' | 'tarde')}
+                  style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
+                  <option value="manha">Manhã</option>
+                  <option value="tarde">Tarde</option>
+                </select>
+              </div>
             </div>
             <div>
-              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Até</label>
-              <input type="date" value={filtroHistDataFim} onChange={(e) => setFiltroHistDataFim(e.target.value)}
-                style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Equipamento *</label>
+              <select value={formPostTempEquipId} onChange={(e) => setFormPostTempEquipId(Number(e.target.value))}
+                style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
+                <option value="">— Seleciona —</option>
+                {equipamentos.map((e) => (<option key={e.id} value={e.id}>{e.nome}</option>))}
+              </select>
             </div>
-            <button onClick={() => carregarHistorico(filtroHistDataInicio, filtroHistDataFim)}
-              style={{ background: '#374151', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Aplicar</button>
+            <div>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '8px' }}>
+                Temperatura {equipSel && `(aceitável: ${equipSel.temp_min_aceitavel}°C a ${equipSel.temp_max_aceitavel}°C)`}
+              </label>
+              <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '32px', fontWeight: '700', color: conforme ? '#16a34a' : '#dc2626' }}>{formPostTempValor}°C</span>
+              </div>
+              <input type="range" min={-20} max={20} step={0.5} value={formPostTempValor}
+                onChange={(e) => setFormPostTempValor(Number(e.target.value))}
+                style={{ width: '100%', accentColor: '#80c944' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Funcionário *</label>
+              {staff.length === 0 ? (
+                <div style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', color: '#92400e' }}>
+                  Ainda não há funcionários. Adiciona-os em "⚙️ Configurações".
+                </div>
+              ) : (
+                <select value={formPostTempStaff} onChange={(e) => setFormPostTempStaff(e.target.value)}
+                  style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
+                  <option value="">— Seleciona —</option>
+                  {staff.map((s) => (<option key={s.id} value={s.nome}>{s.nome}</option>))}
+                </select>
+              )}
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Observações (opcional)</label>
+              <textarea value={formPostTempObs} onChange={(e) => setFormPostTempObs(e.target.value)} rows={2}
+                style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff', resize: 'vertical' }} />
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+              <button onClick={guardarRegistoTempPost} disabled={aGuardarPostTemp || staff.length === 0 || !formPostTempEquipId}
+                style={{ background: (staff.length === 0 || !formPostTempEquipId) ? '#d1d5db' : '#80c944', color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: (staff.length === 0 || !formPostTempEquipId) ? 'not-allowed' : 'pointer' }}>
+                {aGuardarPostTemp ? 'A guardar...' : 'Guardar'}
+              </button>
+              <button onClick={fecharModalNovoTempPost} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+            </div>
           </div>
-
-          {aCarregarHistorico ? (
-            <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
-          ) : historicoRegistos.length === 0 ? (
-            <p style={{ color: '#6b7280', fontSize: '13px' }}>Sem registos no período selecionado.</p>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ background: '#f3f4f6' }}>
-                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Data</th>
-                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Período</th>
-                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Equipamento</th>
-                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Temp.</th>
-                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Staff</th>
-                    <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Obs.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {historicoRegistos.map((r) => {
-                    const equip = equipamentos.find((e) => e.id === r.equipamento_id)
-                    return (
-                      <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                        <td style={{ padding: '8px 10px', color: '#111' }}>{r.data_registo}</td>
-                        <td style={{ padding: '8px 10px', color: '#111' }}>{r.periodo === 'manha' ? 'Manhã' : 'Tarde'}</td>
-                        <td style={{ padding: '8px 10px', color: '#111' }}>{equip?.nome || '—'}</td>
-                        <td style={{ padding: '8px 10px', fontWeight: '600', color: r.conforme ? '#16a34a' : '#dc2626' }}>
-                          {r.temperatura}°C {r.conforme ? '✓' : '⚠'}
-                        </td>
-                        <td style={{ padding: '8px 10px', color: '#111' }}>{r.nome_staff}</td>
-                        <td style={{ padding: '8px 10px', color: '#374151' }}>{r.observacoes || '—'}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       </div>
     )
@@ -2195,7 +2094,6 @@ export default function HaccpHome() {
             </div>
             <button onClick={fecharModalLimpeza} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕</button>
           </div>
-
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '8px' }}>
               Tarefas realizadas ({totalMarcadas}/{tarefas.length})
@@ -2218,20 +2116,17 @@ export default function HaccpHome() {
               </div>
             )}
           </div>
-
           <div style={{ marginBottom: '12px' }}>
             <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Funcionário *</label>
             {staff.length === 0 ? (
               <div style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', color: '#92400e' }}>
-                Ainda não há funcionários nesta loja. {ehGestor ? 'Adiciona-os na secção "Funcionários" abaixo.' : 'Pede a um gestor para os adicionar.'}
+                Ainda não há funcionários. {ehGestor ? 'Adiciona-os em "⚙️ Configurações".' : 'Pede a um gestor para os adicionar.'}
               </div>
             ) : (
               <select value={formLimpezaStaff} onChange={(e) => setFormLimpezaStaff(e.target.value)}
                 style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
                 <option value="">— Seleciona quem fez a limpeza —</option>
-                {staff.map((s) => (
-                  <option key={s.id} value={s.nome}>{s.nome}</option>
-                ))}
+                {staff.map((s) => (<option key={s.id} value={s.nome}>{s.nome}</option>))}
               </select>
             )}
           </div>
@@ -2240,7 +2135,6 @@ export default function HaccpHome() {
             <textarea value={formLimpezaObs} onChange={(e) => setFormLimpezaObs(e.target.value)} rows={2}
               style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff', resize: 'vertical' }} />
           </div>
-
           <div style={{ display: 'flex', gap: '8px' }}>
             <button onClick={guardarRegistoLimpeza} disabled={aGuardarLimpeza || staff.length === 0}
               style={{ background: staff.length === 0 ? '#d1d5db' : '#80c944', color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: staff.length === 0 ? 'not-allowed' : 'pointer' }}>
@@ -2253,83 +2147,508 @@ export default function HaccpHome() {
     )
   }
 
-  function renderModalHistoricoLimpeza() {
-    if (!modalHistoricoLimpezaAberto) return null
+  function renderModalLimpezaPost() {
+    if (!modalLimpezaPostAberto) return null
+    const tarefasEsp = formPostLimpEspId ? (tarefasPorEspaco[formPostLimpEspId as number] || []) : []
+    const totalMarcadas = Object.values(formPostLimpTarefas).filter(Boolean).length
     return (
-      <div onClick={(e) => { if (e.target === e.currentTarget) setModalHistoricoLimpezaAberto(false) }}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
-        <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '900px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
+      <div onClick={(e) => { if (e.target === e.currentTarget) fecharModalLimpezaPost() }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
+        <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '520px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-            <p style={{ fontSize: '18px', fontWeight: '600', color: '#111', margin: 0 }}>Histórico de limpeza — {instalacaoSel?.nome}</p>
-            <button onClick={() => setModalHistoricoLimpezaAberto(false)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕ Fechar</button>
+            <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>
+              {registoLimpezaEmEdicao ? 'Editar registo de limpeza' : 'Novo registo de limpeza (à posteriori)'}
+            </p>
+            <button onClick={fecharModalLimpezaPost} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕</button>
           </div>
-
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
-            <div>
-              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>De</label>
-              <input type="date" value={filtroLimpezaDataInicio} onChange={(e) => setFiltroLimpezaDataInicio(e.target.value)}
-                style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+          <div style={{ display: 'grid', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Data *</label>
+                <input type="date" value={formPostLimpData} onChange={(e) => setFormPostLimpData(e.target.value)}
+                  style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Hora *</label>
+                <input type="time" value={formPostLimpHora} onChange={(e) => setFormPostLimpHora(e.target.value)}
+                  style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+              </div>
             </div>
             <div>
-              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Até</label>
-              <input type="date" value={filtroLimpezaDataFim} onChange={(e) => setFiltroLimpezaDataFim(e.target.value)}
-                style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Espaço *</label>
+              <select value={formPostLimpEspId} onChange={(e) => aoMudarEspacoNoFormPost(Number(e.target.value))}
+                disabled={!!registoLimpezaEmEdicao}
+                style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: registoLimpezaEmEdicao ? '#f3f4f6' : '#fff' }}>
+                <option value="">— Seleciona —</option>
+                {espacos.map((e) => (<option key={e.id} value={e.id}>{e.nome}</option>))}
+              </select>
             </div>
-            <button onClick={() => carregarHistoricoLimpeza(filtroLimpezaDataInicio, filtroLimpezaDataFim)}
-              style={{ background: '#374151', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Aplicar</button>
-          </div>
-
-          {aCarregarHistoricoLimpeza ? (
-            <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
-          ) : historicoLimpezaRegistos.length === 0 ? (
-            <p style={{ color: '#6b7280', fontSize: '13px' }}>Sem registos no período selecionado.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {historicoLimpezaRegistos.map((r) => {
-                const esp = espacos.find((e) => e.id === r.espaco_id)
-                const tarefasDoRegisto = historicoLimpezaTarefas.filter((t) => t.registo_limpeza_id === r.id)
-                const concluidas = tarefasDoRegisto.filter((t) => t.concluida).length
-                const total = tarefasDoRegisto.length
-                const tudoFeito = total > 0 && concluidas === total
-                return (
-                  <div key={r.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px 14px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
-                      <div>
-                        <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 2px' }}>{esp?.nome || '—'}</p>
-                        <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>{r.data_registo} · {formatarHora(r.hora_registo)} · {r.nome_staff}</p>
+            <div>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '8px' }}>
+                Tarefas realizadas ({totalMarcadas}/{tarefasEsp.length})
+              </label>
+              {tarefasEsp.length === 0 ? (
+                <p style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>Este espaço não tem tarefas definidas.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {tarefasEsp.map((t) => (
+                    <label key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', cursor: 'pointer', background: formPostLimpTarefas[t.id] ? '#f0fdf4' : '#fff' }}>
+                      <input type="checkbox" checked={!!formPostLimpTarefas[t.id]}
+                        onChange={() => togglePostTarefa(t.id)}
+                        style={{ width: '18px', height: '18px', accentColor: '#80c944', cursor: 'pointer', marginTop: '1px' }} />
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: '13px', color: '#111' }}>{t.tarefa}</span>
+                        {t.notas && <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0', fontStyle: 'italic' }}>📝 {t.notas}</p>}
                       </div>
-                      <span style={{
-                        fontSize: '12px', fontWeight: '600',
-                        color: tudoFeito ? '#166534' : '#92400e',
-                        background: tudoFeito ? '#dcfce7' : '#fef3c7',
-                        padding: '4px 10px', borderRadius: '99px',
-                      }}>
-                        {concluidas}/{total} tarefas {tudoFeito ? '✓' : '⚠'}
-                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Funcionário *</label>
+              {staff.length === 0 ? (
+                <div style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', color: '#92400e' }}>
+                  Ainda não há funcionários. Adiciona-os em "⚙️ Configurações".
+                </div>
+              ) : (
+                <select value={formPostLimpStaff} onChange={(e) => setFormPostLimpStaff(e.target.value)}
+                  style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
+                  <option value="">— Seleciona —</option>
+                  {staff.map((s) => (<option key={s.id} value={s.nome}>{s.nome}</option>))}
+                </select>
+              )}
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Observações (opcional)</label>
+              <textarea value={formPostLimpObs} onChange={(e) => setFormPostLimpObs(e.target.value)} rows={2}
+                style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff', resize: 'vertical' }} />
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+              <button onClick={guardarRegistoLimpezaPost} disabled={aGuardarPostLimp || staff.length === 0 || !formPostLimpEspId}
+                style={{ background: (staff.length === 0 || !formPostLimpEspId) ? '#d1d5db' : '#80c944', color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: (staff.length === 0 || !formPostLimpEspId) ? 'not-allowed' : 'pointer' }}>
+                {aGuardarPostLimp ? 'A guardar...' : (registoLimpezaEmEdicao ? 'Atualizar' : 'Guardar')}
+              </button>
+              <button onClick={fecharModalLimpezaPost} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  function renderModalRececao() {
+    if (!modalRececaoAberto) return null
+    const semFornecedor = !!ingredienteSelecionado && !ingredienteSelecionado.nome_fornecedor
+    return (
+      <div onClick={(e) => { if (e.target === e.currentTarget) fecharModalRececao() }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
+        <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '520px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+            <div>
+              <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: '0 0 2px' }}>
+                {registoRececaoEmEdicao ? 'Editar receção' : 'Nova receção de mercadoria'}
+              </p>
+              <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>{instalacaoSel?.nome} · {obterDataHoje()}</p>
+            </div>
+            <button onClick={fecharModalRececao} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕</button>
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Produto *</label>
+            {ingredienteSelecionado ? (
+              <div style={{ border: semFornecedor ? '1px solid #fcd34d' : '1px solid #80c944', borderRadius: '8px', padding: '12px', background: semFornecedor ? '#fffbeb' : '#f0fdf4' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 4px' }}>{ingredienteSelecionado.nome}</p>
+                    <p style={{ fontSize: '12px', color: '#374151', margin: 0 }}>Categoria: <strong>{ingredienteSelecionado.categoria || '—'}</strong></p>
+                    <p style={{ fontSize: '12px', color: semFornecedor ? '#92400e' : '#374151', margin: '2px 0 0' }}>
+                      Fornecedor: <strong>{ingredienteSelecionado.nome_fornecedor || 'Sem fornecedor cadastrado'}</strong>
+                    </p>
+                  </div>
+                  <button onClick={() => { setIngredienteSelecionado(null); setPesquisaIngrediente(''); }}
+                    style={{ background: 'transparent', border: 'none', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>Trocar</button>
+                </div>
+                {semFornecedor && (
+                  <p style={{ fontSize: '11px', color: '#92400e', margin: '8px 0 0', fontWeight: '500' }}>
+                    ⚠ Este produto não tem fornecedor cadastrado. Atualiza o ingrediente antes de registar a receção.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <>
+                <input type="text" value={pesquisaIngrediente}
+                  onChange={(e) => { setPesquisaIngrediente(e.target.value); pesquisarIngredientes(e.target.value) }}
+                  placeholder="Pesquisa por nome (mín. 2 caracteres)..."
+                  style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                {aCarregarSugestoes && <p style={{ fontSize: '11px', color: '#6b7280', margin: '4px 0 0' }}>A pesquisar...</p>}
+                {sugestoesIngredientes.length > 0 && (
+                  <div style={{ border: '1px solid #e5e7eb', borderRadius: '6px', marginTop: '6px', maxHeight: '240px', overflowY: 'auto' }}>
+                    {sugestoesIngredientes.map((ing) => (
+                      <button key={ing.id} onClick={() => selecionarIngrediente(ing)}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', background: '#fff', border: 'none', borderBottom: '1px solid #f3f4f6', padding: '8px 12px', cursor: 'pointer' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}>
+                        <p style={{ fontSize: '13px', fontWeight: '500', color: '#111', margin: 0 }}>{ing.nome}</p>
+                        <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0' }}>
+                          {ing.categoria || 'sem categoria'} · {ing.nome_fornecedor || 'sem fornecedor'}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {pesquisaIngrediente.trim().length >= 2 && !aCarregarSugestoes && sugestoesIngredientes.length === 0 && (
+                  <p style={{ fontSize: '12px', color: '#9ca3af', margin: '6px 0 0' }}>Nenhum produto encontrado.</p>
+                )}
+              </>
+            )}
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Lote (opcional)</label>
+            <input type="text" value={formRececaoLote} onChange={(e) => setFormRececaoLote(e.target.value)}
+              placeholder="ex: L20260505-A"
+              style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '8px' }}>Temperatura de chegada</label>
+            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '36px', fontWeight: '700', color: '#111' }}>{formRececaoTemp}°C</span>
+            </div>
+            <input type="range" min={-25} max={25} step={0.5} value={formRececaoTemp}
+              onChange={(e) => setFormRececaoTemp(Number(e.target.value))}
+              style={{ width: '100%', accentColor: '#80c944' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
+              <span>-25°C</span><span>0°C</span><span>+25°C</span>
+            </div>
+          </div>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Receptor *</label>
+            {staff.length === 0 ? (
+              <div style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', color: '#92400e' }}>
+                Ainda não há funcionários. {ehGestor ? 'Adiciona-os em "⚙️ Configurações".' : 'Pede a um gestor para os adicionar.'}
+              </div>
+            ) : (
+              <select value={formRececaoStaff} onChange={(e) => setFormRececaoStaff(e.target.value)}
+                style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
+                <option value="">— Seleciona quem recebeu —</option>
+                {staff.map((s) => (<option key={s.id} value={s.nome}>{s.nome}</option>))}
+              </select>
+            )}
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Observações (opcional)</label>
+            <textarea value={formRececaoObs} onChange={(e) => setFormRececaoObs(e.target.value)} rows={2}
+              style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff', resize: 'vertical' }} />
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={guardarRegistoRececao}
+              disabled={aGuardarRececao || !ingredienteSelecionado || semFornecedor || staff.length === 0}
+              style={{
+                background: (!ingredienteSelecionado || semFornecedor || staff.length === 0) ? '#d1d5db' : '#80c944',
+                color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500',
+                cursor: (!ingredienteSelecionado || semFornecedor || staff.length === 0) ? 'not-allowed' : 'pointer'
+              }}>
+              {aGuardarRececao ? 'A guardar...' : (registoRececaoEmEdicao ? 'Atualizar' : 'Guardar registo')}
+            </button>
+            <button onClick={fecharModalRececao} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  function renderModalConfig() {
+    if (!modalConfigAberto) return null
+    return (
+      <div onClick={(e) => { if (e.target === e.currentTarget) setModalConfigAberto(false) }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+        <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '520px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+            <p style={{ fontSize: '18px', fontWeight: '600', color: '#111', margin: 0 }}>⚙️ Configurações</p>
+            <button onClick={() => setModalConfigAberto(false)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕ Fechar</button>
+          </div>
+          <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 16px' }}>O que queres gerir?</p>
+          <div style={{ display: 'grid', gap: '10px' }}>
+            <button onClick={() => setModalEquipamentosAberto(true)}
+              style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '16px', textAlign: 'left', cursor: 'pointer' }}
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = '#80c944'}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}>
+              <p style={{ fontSize: '15px', fontWeight: '600', color: '#111', margin: '0 0 2px' }}>⚙️ Equipamentos</p>
+              <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Frigoríficos e arcas para controlo de temperatura ({equipamentos.length})</p>
+            </button>
+            <button onClick={() => setModalEspacosAberto(true)}
+              style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '16px', textAlign: 'left', cursor: 'pointer' }}
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = '#80c944'}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}>
+              <p style={{ fontSize: '15px', fontWeight: '600', color: '#111', margin: '0 0 2px' }}>🏠 Espaços e tarefas</p>
+              <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Áreas de limpeza e tarefas associadas ({espacos.length})</p>
+            </button>
+            <button onClick={() => setModalFuncionariosAberto(true)}
+              style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '16px', textAlign: 'left', cursor: 'pointer' }}
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = '#80c944'}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}>
+              <p style={{ fontSize: '15px', fontWeight: '600', color: '#111', margin: '0 0 2px' }}>👥 Funcionários</p>
+              <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Lista de pessoas que aparece ao registar ({staff.length})</p>
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  function renderModalEquipamentos() {
+    if (!modalEquipamentosAberto) return null
+    return (
+      <div onClick={(e) => { if (e.target === e.currentTarget) setModalEquipamentosAberto(false) }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
+        <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '640px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+            <p style={{ fontSize: '18px', fontWeight: '600', color: '#111', margin: 0 }}>⚙️ Equipamentos</p>
+            <button onClick={() => setModalEquipamentosAberto(false)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕ Fechar</button>
+          </div>
+          {!novoEquipamentoAberto && !equipamentoEmEdicao && (
+            <button onClick={abrirFormNovoEquipamento}
+              style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500', marginBottom: '14px' }}>+ Novo equipamento</button>
+          )}
+          {(novoEquipamentoAberto || equipamentoEmEdicao) && (
+            <div style={{ border: '2px solid #80c944', borderRadius: '10px', padding: '16px', marginBottom: '16px', background: '#f9fafb' }}>
+              <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 12px' }}>{equipamentoEmEdicao ? 'Editar equipamento' : 'Novo equipamento'}</p>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome *</label>
+                  <input type="text" value={formEquipNome} onChange={(e) => setFormEquipNome(e.target.value)}
+                    placeholder="ex: Frigorífico positivo cozinha"
+                    style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Descrição (opcional)</label>
+                  <input type="text" value={formEquipDescricao} onChange={(e) => setFormEquipDescricao(e.target.value)}
+                    placeholder="ex: Carnes e peixes"
+                    style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Temp. mínima (°C)</label>
+                    <input type="number" value={formEquipMin} onChange={(e) => setFormEquipMin(Number(e.target.value))}
+                      style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Temp. máxima (°C)</label>
+                    <input type="number" value={formEquipMax} onChange={(e) => setFormEquipMax(Number(e.target.value))}
+                      style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                  <button onClick={guardarEquipamento} disabled={aGuardarEquip}
+                    style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+                    {aGuardarEquip ? 'A guardar...' : 'Guardar'}
+                  </button>
+                  <button onClick={fecharFormEquipamento} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          )}
+          {equipamentos.length === 0 ? (
+            <p style={{ color: '#6b7280', fontSize: '13px' }}>Ainda não há equipamentos.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {equipamentos.map((equip) => (
+                <div key={equip.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px 14px' }}>
+                  <div>
+                    <p style={{ fontSize: '14px', fontWeight: '500', color: '#111', margin: 0 }}>{equip.nome}</p>
+                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0' }}>
+                      {equip.temp_min_aceitavel}°C a {equip.temp_max_aceitavel}°C
+                      {equip.descricao && ` · ${equip.descricao}`}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button onClick={() => abrirFormEditarEquipamento(equip)} style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
+                    <button onClick={() => apagarEquipamento(equip)} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  function renderModalEspacos() {
+    if (!modalEspacosAberto) return null
+    return (
+      <div onClick={(e) => { if (e.target === e.currentTarget) setModalEspacosAberto(false) }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
+        <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '720px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+            <p style={{ fontSize: '18px', fontWeight: '600', color: '#111', margin: 0 }}>🏠 Espaços e tarefas</p>
+            <button onClick={() => setModalEspacosAberto(false)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕ Fechar</button>
+          </div>
+          {!novoEspacoAberto && !espacoEmEdicao && (
+            <button onClick={abrirFormNovoEspaco}
+              style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500', marginBottom: '14px' }}>+ Novo espaço</button>
+          )}
+          {(novoEspacoAberto || espacoEmEdicao) && (
+            <div style={{ border: '2px solid #80c944', borderRadius: '10px', padding: '16px', marginBottom: '16px', background: '#f9fafb' }}>
+              <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 12px' }}>{espacoEmEdicao ? 'Editar espaço' : 'Novo espaço'}</p>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome *</label>
+                  <input type="text" value={formEspNome} onChange={(e) => setFormEspNome(e.target.value)}
+                    placeholder="ex: Cozinha principal"
+                    style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Descrição (opcional)</label>
+                  <input type="text" value={formEspDescricao} onChange={(e) => setFormEspDescricao(e.target.value)}
+                    placeholder="ex: Zona quente e fria"
+                    style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                  <button onClick={guardarEspaco} disabled={aGuardarEspaco}
+                    style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+                    {aGuardarEspaco ? 'A guardar...' : 'Guardar'}
+                  </button>
+                  <button onClick={fecharFormEspaco} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          )}
+          {espacos.length === 0 ? (
+            <p style={{ color: '#6b7280', fontSize: '13px' }}>Ainda não há espaços.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {espacos.map((esp) => {
+                const expandido = !!espacosExpandidos[esp.id]
+                const tarefas = tarefasPorEspaco[esp.id] || []
+                return (
+                  <div key={esp.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f9fafb', cursor: 'pointer' }} onClick={() => toggleExpandirEspaco(esp.id)}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: '14px', fontWeight: '500', color: '#111', margin: 0 }}>
+                          {expandido ? '▼' : '▶'} {esp.nome}
+                          <span style={{ fontSize: '12px', color: '#6b7280', fontWeight: '400', marginLeft: '8px' }}>({tarefas.length})</span>
+                        </p>
+                        {esp.descricao && <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0 18px' }}>{esp.descricao}</p>}
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => abrirFormEditarEspaco(esp)} style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
+                        <button onClick={() => apagarEspaco(esp)} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
+                      </div>
                     </div>
-                    {tarefasDoRegisto.length > 0 && (
-                      <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        {tarefasDoRegisto.map((t) => {
-                          // tentar encontrar o texto da tarefa — pode não estar em tarefasPorEspaco se a tarefa foi apagada
-                          const textoTarefa = (() => {
-                            for (const lista of Object.values(tarefasPorEspaco)) {
-                              const encontrada = lista.find((tt) => tt.id === t.tarefa_id)
-                              if (encontrada) return encontrada.tarefa
-                            }
-                            return `Tarefa #${t.tarefa_id}`
-                          })()
-                          return (
-                            <p key={t.id} style={{ fontSize: '12px', margin: 0, color: t.concluida ? '#166534' : '#9ca3af', textDecoration: t.concluida ? 'none' : 'line-through' }}>
-                              {t.concluida ? '✓' : '○'} {textoTarefa}
-                            </p>
-                          )
-                        })}
+                    {expandido && (
+                      <div style={{ padding: '12px 14px', borderTop: '1px solid #e5e7eb' }}>
+                        {tarefas.length === 0 ? (
+                          <p style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic', margin: '0 0 10px' }}>Sem tarefas. Adiciona a primeira em baixo.</p>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
+                            {tarefas.map((t) => (
+                              <div key={t.id} style={{ padding: '8px 10px', background: '#fff', border: '1px solid #f3f4f6', borderRadius: '6px' }}>
+                                {tarefaEmEdicaoId === t.id ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <input type="text" value={formTarefaTexto} onChange={(e) => setFormTarefaTexto(e.target.value)}
+                                      style={{ width: '100%', border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff', boxSizing: 'border-box' }} />
+                                    <textarea value={formTarefaNotas} onChange={(e) => setFormTarefaNotas(e.target.value)} rows={2}
+                                      placeholder="Notas..."
+                                      style={{ width: '100%', border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff', boxSizing: 'border-box', resize: 'vertical' }} />
+                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                      <button onClick={() => guardarEdicaoTarefa(t.id)} style={{ background: '#80c944', color: '#fff', border: 'none', padding: '5px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Guardar</button>
+                                      <button onClick={cancelarEdicaoTarefa} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '5px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Cancelar</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                    <div style={{ flex: 1 }}>
+                                      <p style={{ fontSize: '13px', color: '#111', margin: 0 }}>• {t.tarefa}</p>
+                                      {t.notas && <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0 10px', fontStyle: 'italic' }}>📝 {t.notas}</p>}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                      <button onClick={() => iniciarEdicaoTarefa(t)} style={{ background: 'transparent', border: 'none', color: '#1e40af', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
+                                      <button onClick={() => apagarTarefa(t)} style={{ background: 'transparent', border: 'none', color: '#991b1b', fontSize: '12px', cursor: 'pointer' }}>×</button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px', background: '#f9fafb', borderRadius: '6px' }}>
+                          <p style={{ fontSize: '11px', color: '#6b7280', margin: 0, fontWeight: '500' }}>Adicionar nova tarefa</p>
+                          <input type="text" value={novaTarefaPorEspaco[esp.id] || ''}
+                            onChange={(e) => setNovaTarefaPorEspaco((prev) => ({ ...prev, [esp.id]: e.target.value }))}
+                            placeholder="Nome da tarefa..."
+                            style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff', boxSizing: 'border-box' }} />
+                          <textarea value={novaTarefaNotasPorEspaco[esp.id] || ''}
+                            onChange={(e) => setNovaTarefaNotasPorEspaco((prev) => ({ ...prev, [esp.id]: e.target.value }))}
+                            placeholder="Notas (periodicidade, produtos a usar, detalhes...)"
+                            rows={2}
+                            style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '5px', fontSize: '13px', color: '#111', background: '#fff', boxSizing: 'border-box', resize: 'vertical' }} />
+                          <button onClick={() => adicionarTarefa(esp.id)} disabled={aGuardarTarefa}
+                            style={{ background: '#80c944', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontWeight: '500', alignSelf: 'flex-start' }}>
+                            {aGuardarTarefa ? 'A guardar...' : '+ Adicionar tarefa'}
+                          </button>
+                        </div>
                       </div>
                     )}
-                    {r.observacoes && <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '6px', fontStyle: 'italic' }}>Obs: {r.observacoes}</p>}
                   </div>
                 )
               })}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  function renderModalFuncionarios() {
+    if (!modalFuncionariosAberto) return null
+    return (
+      <div onClick={(e) => { if (e.target === e.currentTarget) setModalFuncionariosAberto(false) }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
+        <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '520px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+            <p style={{ fontSize: '18px', fontWeight: '600', color: '#111', margin: 0 }}>👥 Funcionários</p>
+            <button onClick={() => setModalFuncionariosAberto(false)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕ Fechar</button>
+          </div>
+          <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 14px' }}>
+            Estes nomes aparecem ao registar temperaturas, limpezas e receções.
+          </p>
+          {!novoStaffAberto && !staffEmEdicao && (
+            <button onClick={abrirFormNovoStaff}
+              style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500', marginBottom: '14px' }}>+ Novo funcionário</button>
+          )}
+          {(novoStaffAberto || staffEmEdicao) && (
+            <div style={{ border: '2px solid #80c944', borderRadius: '10px', padding: '16px', marginBottom: '16px', background: '#f9fafb' }}>
+              <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 12px' }}>{staffEmEdicao ? 'Editar funcionário' : 'Novo funcionário'}</p>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Nome *</label>
+                  <input type="text" value={formStaffNome} onChange={(e) => setFormStaffNome(e.target.value)}
+                    placeholder="ex: Maria Silva"
+                    style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                  <button onClick={guardarStaff} disabled={aGuardarStaff}
+                    style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+                    {aGuardarStaff ? 'A guardar...' : 'Guardar'}
+                  </button>
+                  <button onClick={fecharFormStaff} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          )}
+          {staff.length === 0 ? (
+            <p style={{ color: '#6b7280', fontSize: '13px' }}>Ainda não há funcionários.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {staff.map((s) => (
+                <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '10px 14px' }}>
+                  <p style={{ fontSize: '14px', fontWeight: '500', color: '#111', margin: 0 }}>{s.nome}</p>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button onClick={() => abrirFormEditarStaff(s)} style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
+                    <button onClick={() => apagarStaff(s)} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Remover</button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -2347,12 +2666,10 @@ export default function HaccpHome() {
             <p style={{ fontSize: '18px', fontWeight: '600', color: '#111', margin: 0 }}>Gerir lojas</p>
             <button onClick={() => setGestaoInstalacoesAberta(false)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕ Fechar</button>
           </div>
-
           {!formInstalacaoAberto && (
             <button onClick={abrirFormNovaInstalacao}
               style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer', marginBottom: '16px' }}>+ Nova loja</button>
           )}
-
           {formInstalacaoAberto && (
             <div style={{ border: '2px solid #80c944', borderRadius: '10px', padding: '16px', marginBottom: '16px', background: '#f9fafb' }}>
               <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 12px' }}>{instalacaoEmEdicao ? 'Editar loja' : 'Nova loja'}</p>
@@ -2366,7 +2683,7 @@ export default function HaccpHome() {
                 <div>
                   <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Morada</label>
                   <input type="text" value={formInstMorada} onChange={(e) => setFormInstMorada(e.target.value)}
-                    placeholder="ex: Rua da Cozinha, 123, 4000-000 Porto"
+                    placeholder="ex: Rua da Cozinha, 123"
                     style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
                 </div>
                 <div>
@@ -2375,9 +2692,6 @@ export default function HaccpHome() {
                       style={{ width: '16px', height: '16px', accentColor: '#80c944', cursor: 'pointer' }} />
                     Tem fabrico de produtos
                   </label>
-                  <p style={{ fontSize: '11px', color: '#6b7280', margin: '4px 0 0 24px' }}>
-                    Lojas com fabrico mostram registos de Lavagem de hortofrutícolas e Confeção/Arrefecimento.
-                  </p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                   <button onClick={guardarInstalacao} disabled={aGuardarInst}
@@ -2389,7 +2703,6 @@ export default function HaccpHome() {
               </div>
             </div>
           )}
-
           {instalacoes.length === 0 ? (
             <p style={{ color: '#6b7280', fontSize: '13px' }}>Ainda não há lojas.</p>
           ) : (
