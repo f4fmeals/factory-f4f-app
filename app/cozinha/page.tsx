@@ -587,7 +587,7 @@ export default function Cozinha() {
     if (data) setRegistosDesinfeccao(prev => ({ ...prev, [tarefaPreparacaoId]: { ...novoEstado, id: data.id } }))
   }
 
-  const PRINTER_URL = 'https://expansys-football-complement-numerical.trycloudflare.com/print'
+  const PRINTER_URL = 'https://legacy-arthritis-copyrighted-remarks.trycloudflare.com/print'
 
   function gerarZPL(dados: {
     componenteDestino: string
