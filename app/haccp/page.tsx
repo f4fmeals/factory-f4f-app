@@ -115,6 +115,34 @@ type IngredienteSugestao = {
   nome_fornecedor: string | null
 }
 
+type PratoSugestao = {
+  id: number
+  nome: string
+  sku: string | null
+  tamanho: string | null
+  categoria_prato: string | null
+}
+
+type RegistoRececaoLoja = {
+  id: number
+  instalacao_id: number
+  prato_id: number
+  produto_nome: string
+  sku: string | null
+  tamanho: string | null
+  categoria_prato: string | null
+  loja_fabrico_id: number | null
+  loja_fabrico_nome: string
+  data_registo: string
+  hora_registo: string
+  lote: string | null
+  temperatura_chegada: number
+  nome_staff: string
+  observacoes: string | null
+  user_id: string | null
+  criado_em: string
+}
+
 type RegistoRececao = {
   id: number
   instalacao_id: number
@@ -284,6 +312,16 @@ export default function HaccpHome() {
   const [formRececaoObs, setFormRececaoObs] = useState('')
   const [aGuardarRececao, setAGuardarRececao] = useState(false)
 
+  // Receção de pratos (lojas sem fabrico)
+  const [registosRececaoLoja, setRegistosRececaoLoja] = useState<RegistoRececaoLoja[]>([])
+  const [registoRececaoLojaEmEdicao, setRegistoRececaoLojaEmEdicao] = useState<RegistoRececaoLoja | null>(null)
+  const [pesquisaPrato, setPesquisaPrato] = useState('')
+  const [sugestoesPratos, setSugestoesPratos] = useState<PratoSugestao[]>([])
+  const [aCarregarSugestoesPratos, setACarregarSugestoesPratos] = useState(false)
+  const [pratoSelecionado, setPratoSelecionado] = useState<PratoSugestao | null>(null)
+  const [lojasFabricoDisponiveis, setLojasFabricoDisponiveis] = useState<Instalacao[]>([])
+  const [formRececaoLojaFabricoId, setFormRececaoLojaFabricoId] = useState<number | ''>('')
+
   // ===== Inicialização =====
   useEffect(() => {
     async function verificarAcesso() {
@@ -323,6 +361,7 @@ export default function HaccpHome() {
       setStaff([])
       setRegistosLavagem([]); setRegistosConfeccao([])
       setRegistosRececao([])
+      setRegistosRececaoLoja([])
     }
   }, [instalacaoSel])
 
@@ -360,12 +399,22 @@ export default function HaccpHome() {
       setFiltroConfeccaoDataInicio(data7); setFiltroConfeccaoDataFim(hoje)
       carregarRegistosConfeccao(data7, hoje)
     }
-    if (abaAtiva === 'rececao' && registosRececao.length === 0 && !aCarregarRececao) {
-      const hoje = obterDataHoje()
-      const ha7 = new Date(); ha7.setDate(ha7.getDate() - 7)
-      const data7 = `${ha7.getFullYear()}-${String(ha7.getMonth() + 1).padStart(2, '0')}-${String(ha7.getDate()).padStart(2, '0')}`
-      setFiltroRececaoDataInicio(data7); setFiltroRececaoDataFim(hoje)
-      carregarRegistosRececao(data7, hoje)
+    if (abaAtiva === 'rececao' && !aCarregarRececao) {
+      const precisaCarregar = instalacaoSel.tem_fabrico
+        ? registosRececao.length === 0
+        : registosRececaoLoja.length === 0
+      if (precisaCarregar) {
+        const hoje = obterDataHoje()
+        const ha7 = new Date(); ha7.setDate(ha7.getDate() - 7)
+        const data7 = `${ha7.getFullYear()}-${String(ha7.getMonth() + 1).padStart(2, '0')}-${String(ha7.getDate()).padStart(2, '0')}`
+        setFiltroRececaoDataInicio(data7); setFiltroRececaoDataFim(hoje)
+        if (instalacaoSel.tem_fabrico) {
+          carregarRegistosRececao(data7, hoje)
+        } else {
+          carregarLojasFabricoDisponiveis()
+          carregarRegistosRececaoLoja(data7, hoje)
+        }
+      }
     }
   }, [abaAtiva, instalacaoSel])
 
@@ -1253,7 +1302,9 @@ export default function HaccpHome() {
   }
 
   function fecharModalRececao() {
-    setModalRececaoAberto(false); setRegistoRececaoEmEdicao(null); setIngredienteSelecionado(null)
+    setModalRececaoAberto(false)
+    setRegistoRececaoEmEdicao(null); setIngredienteSelecionado(null)
+    setRegistoRececaoLojaEmEdicao(null); setPratoSelecionado(null)
   }
 
   function selecionarIngrediente(ing: IngredienteSugestao) {
@@ -1312,6 +1363,126 @@ export default function HaccpHome() {
     const { error } = await supabase.from('haccp_rececoes_mercadoria').delete().eq('id', reg.id)
     if (error) { alert('Erro ao apagar o registo.'); return }
     await carregarRegistosRececao(filtroRececaoDataInicio, filtroRececaoDataFim)
+  }
+
+  // ===== RECEÇÃO DE PRATOS (lojas sem fabrico) =====
+  async function carregarLojasFabricoDisponiveis() {
+    const { data } = await supabase
+      .from('instalacoes').select('*')
+      .eq('ativo', true).eq('tem_fabrico', true)
+      .order('nome', { ascending: true })
+    setLojasFabricoDisponiveis((data as Instalacao[]) || [])
+  }
+
+  async function carregarRegistosRececaoLoja(dataInicio: string, dataFim: string) {
+    if (!instalacaoSel) return
+    setACarregarRececao(true)
+    const { data, error } = await supabase
+      .from('haccp_rececoes_loja').select('*')
+      .eq('instalacao_id', instalacaoSel.id)
+      .gte('data_registo', dataInicio).lte('data_registo', dataFim)
+      .order('data_registo', { ascending: false }).order('hora_registo', { ascending: false })
+    if (!error) setRegistosRececaoLoja((data as RegistoRececaoLoja[]) || [])
+    setACarregarRececao(false)
+  }
+
+  async function pesquisarPratos(texto: string) {
+    if (texto.trim().length < 2) { setSugestoesPratos([]); return }
+    setACarregarSugestoesPratos(true)
+    const termo = texto.trim()
+    const { data, error } = await supabase
+      .from('pratos').select('id, nome, sku, tamanho, categoria_prato')
+      .or(`nome.ilike.%${termo}%,sku.ilike.%${termo}%`)
+      .order('nome', { ascending: true }).limit(15)
+    if (!error) setSugestoesPratos((data as PratoSugestao[]) || [])
+    setACarregarSugestoesPratos(false)
+  }
+
+  function abrirModalNovaRececaoLoja() {
+    setRegistoRececaoLojaEmEdicao(null)
+    setPratoSelecionado(null); setPesquisaPrato(''); setSugestoesPratos([])
+    setFormRececaoLojaFabricoId(lojasFabricoDisponiveis.length === 1 ? lojasFabricoDisponiveis[0].id : '')
+    setFormRececaoLote(''); setFormRececaoTemp(4); setFormRececaoStaff(''); setFormRececaoObs('')
+    setModalRececaoAberto(true)
+  }
+
+  function abrirModalEditarRececaoLoja(reg: RegistoRececaoLoja) {
+    setRegistoRececaoLojaEmEdicao(reg)
+    setPratoSelecionado({
+      id: reg.prato_id, nome: reg.produto_nome,
+      sku: reg.sku, tamanho: reg.tamanho, categoria_prato: reg.categoria_prato,
+    })
+    setPesquisaPrato(''); setSugestoesPratos([])
+    setFormRececaoLojaFabricoId(reg.loja_fabrico_id || '')
+    setFormRececaoLote(reg.lote || '')
+    setFormRececaoTemp(Number(reg.temperatura_chegada))
+    setFormRececaoStaff(reg.nome_staff)
+    setFormRececaoObs(reg.observacoes || '')
+    setModalRececaoAberto(true)
+  }
+
+  function selecionarPrato(p: PratoSugestao) {
+    setPratoSelecionado(p); setPesquisaPrato(''); setSugestoesPratos([])
+  }
+
+  async function guardarRegistoRececaoLoja() {
+    if (!instalacaoSel) return
+    if (!pratoSelecionado) { alert('Seleciona um prato.'); return }
+    if (!formRececaoLojaFabricoId) { alert('Seleciona a loja de fabrico (origem).'); return }
+    const staffNome = formRececaoStaff.trim()
+    if (!staffNome) { alert('Seleciona o funcionário.'); return }
+    const lojaFabrico = lojasFabricoDisponiveis.find((l) => l.id === Number(formRececaoLojaFabricoId))
+    if (!lojaFabrico) { alert('Loja de fabrico inválida.'); return }
+    setAGuardarRececao(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (registoRececaoLojaEmEdicao) {
+      const podeEditar = ehGestor || registoRececaoLojaEmEdicao.user_id === user?.id
+      if (!podeEditar) { alert('Não tens permissão para editar este registo.'); setAGuardarRececao(false); return }
+      const { error } = await supabase.from('haccp_rececoes_loja').update({
+        prato_id: pratoSelecionado.id,
+        produto_nome: pratoSelecionado.nome,
+        sku: pratoSelecionado.sku,
+        tamanho: pratoSelecionado.tamanho,
+        categoria_prato: pratoSelecionado.categoria_prato,
+        loja_fabrico_id: lojaFabrico.id,
+        loja_fabrico_nome: lojaFabrico.nome,
+        lote: formRececaoLote.trim() || null,
+        temperatura_chegada: formRececaoTemp,
+        nome_staff: staffNome,
+        observacoes: formRececaoObs.trim() || null,
+      }).eq('id', registoRececaoLojaEmEdicao.id)
+      if (error) { alert('Erro ao atualizar o registo.'); setAGuardarRececao(false); return }
+    } else {
+      const { error } = await supabase.from('haccp_rececoes_loja').insert([{
+        instalacao_id: instalacaoSel.id,
+        prato_id: pratoSelecionado.id,
+        produto_nome: pratoSelecionado.nome,
+        sku: pratoSelecionado.sku,
+        tamanho: pratoSelecionado.tamanho,
+        categoria_prato: pratoSelecionado.categoria_prato,
+        loja_fabrico_id: lojaFabrico.id,
+        loja_fabrico_nome: lojaFabrico.nome,
+        data_registo: obterDataHoje(),
+        hora_registo: obterHoraAgora(),
+        lote: formRececaoLote.trim() || null,
+        temperatura_chegada: formRececaoTemp,
+        nome_staff: staffNome,
+        observacoes: formRececaoObs.trim() || null,
+        user_id: user?.id || null,
+      }])
+      if (error) { alert('Erro ao guardar o registo.'); setAGuardarRececao(false); return }
+    }
+    await carregarRegistosRececaoLoja(filtroRececaoDataInicio, filtroRececaoDataFim)
+    fecharModalRececao()
+    setAGuardarRececao(false)
+  }
+
+  async function apagarRegistoRececaoLoja(reg: RegistoRececaoLoja) {
+    if (!ehGestor) return
+    if (!window.confirm(`Apagar o registo de receção de "${reg.produto_nome}" (${reg.data_registo})?`)) return
+    const { error } = await supabase.from('haccp_rececoes_loja').delete().eq('id', reg.id)
+    if (error) { alert('Erro ao apagar o registo.'); return }
+    await carregarRegistosRececaoLoja(filtroRececaoDataInicio, filtroRececaoDataFim)
   }
 
   // ===== RENDER =====
@@ -1848,6 +2019,7 @@ export default function HaccpHome() {
   }
 
   function renderAbaRececao() {
+    if (!instalacaoSel?.tem_fabrico) return renderAbaRececaoLoja()
     const fornecedoresUnicos = Array.from(new Set(registosRececao.map((r) => r.fornecedor_nome))).sort()
     const registosFiltrados = filtroRececaoFornecedor
       ? registosRececao.filter((r) => r.fornecedor_nome === filtroRececaoFornecedor)
@@ -1924,6 +2096,101 @@ export default function HaccpHome() {
                             style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
                           {ehGestor && (
                             <button onClick={() => apagarRegistoRececao(r)}
+                              style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function renderAbaRececaoLoja() {
+    const lojasUnicas = Array.from(new Set(registosRececaoLoja.map((r) => r.loja_fabrico_nome))).sort()
+    const registosFiltrados = filtroRececaoFornecedor
+      ? registosRececaoLoja.filter((r) => r.loja_fabrico_nome === filtroRececaoFornecedor)
+      : registosRececaoLoja
+    return (
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+          <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>📦 Receção de mercadorias <span style={{ fontWeight: '400', color: '#6b7280', fontSize: '13px' }}>(pratos vindos de fabrico)</span></p>
+          <button onClick={abrirModalNovaRececaoLoja}
+            style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>
+            + Nova receção
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>De</label>
+            <input type="date" value={filtroRececaoDataInicio} onChange={(e) => setFiltroRececaoDataInicio(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Até</label>
+            <input type="date" value={filtroRececaoDataFim} onChange={(e) => setFiltroRececaoDataFim(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Loja de fabrico</label>
+            <select value={filtroRececaoFornecedor} onChange={(e) => setFiltroRececaoFornecedor(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff', minWidth: '180px' }}>
+              <option value="">— Todas —</option>
+              {lojasUnicas.map((f) => (
+                <option key={f} value={f}>{f}</option>
+              ))}
+            </select>
+          </div>
+          <button onClick={() => carregarRegistosRececaoLoja(filtroRececaoDataInicio, filtroRececaoDataFim)}
+            style={{ background: '#374151', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Aplicar</button>
+        </div>
+        {aCarregarRececao ? (
+          <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
+        ) : registosFiltrados.length === 0 ? (
+          <p style={{ color: '#6b7280', fontSize: '13px' }}>Sem registos de receção no período selecionado.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ background: '#f3f4f6' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Data/Hora</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Prato</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Tamanho/SKU</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Categoria</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Loja de fabrico</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Lote</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Temp.</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Receptor</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Obs.</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {registosFiltrados.map((r) => {
+                  const dataHora = `${r.data_registo} ${formatarHora(r.hora_registo)}`
+                  const tamSku = [r.tamanho, r.sku].filter(Boolean).join(' · ') || '—'
+                  return (
+                    <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '8px 10px', color: '#111' }}>{dataHora}</td>
+                      <td style={{ padding: '8px 10px', color: '#111', fontWeight: '500' }}>{r.produto_nome}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{tamSku}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.categoria_prato || '—'}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.loja_fabrico_nome}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.lote || '—'}</td>
+                      <td style={{ padding: '8px 10px', fontWeight: '600', color: '#111' }}>{Number(r.temperatura_chegada).toFixed(1)}°C</td>
+                      <td style={{ padding: '8px 10px', color: '#111' }}>{r.nome_staff}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.observacoes || '—'}</td>
+                      <td style={{ padding: '8px 10px' }}>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button onClick={() => abrirModalEditarRececaoLoja(r)}
+                            style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
+                          {ehGestor && (
+                            <button onClick={() => apagarRegistoRececaoLoja(r)}
                               style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
                           )}
                         </div>
@@ -2239,6 +2506,7 @@ export default function HaccpHome() {
 
   function renderModalRececao() {
     if (!modalRececaoAberto) return null
+    if (!instalacaoSel?.tem_fabrico) return renderModalRececaoLoja()
     const semFornecedor = !!ingredienteSelecionado && !ingredienteSelecionado.nome_fornecedor
     return (
       <div onClick={(e) => { if (e.target === e.currentTarget) fecharModalRececao() }}
@@ -2348,6 +2616,133 @@ export default function HaccpHome() {
                 cursor: (!ingredienteSelecionado || semFornecedor || staff.length === 0) ? 'not-allowed' : 'pointer'
               }}>
               {aGuardarRececao ? 'A guardar...' : (registoRececaoEmEdicao ? 'Atualizar' : 'Guardar registo')}
+            </button>
+            <button onClick={fecharModalRececao} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  function renderModalRececaoLoja() {
+    const tamSku = pratoSelecionado ? [pratoSelecionado.tamanho, pratoSelecionado.sku].filter(Boolean).join(' · ') : ''
+    return (
+      <div onClick={(e) => { if (e.target === e.currentTarget) fecharModalRececao() }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
+        <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '520px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+            <div>
+              <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: '0 0 2px' }}>
+                {registoRececaoLojaEmEdicao ? 'Editar receção' : 'Nova receção de mercadoria'}
+              </p>
+              <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>{instalacaoSel?.nome} · {obterDataHoje()}</p>
+            </div>
+            <button onClick={fecharModalRececao} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕</button>
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Prato *</label>
+            {pratoSelecionado ? (
+              <div style={{ border: '1px solid #80c944', borderRadius: '8px', padding: '12px', background: '#f0fdf4' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 4px' }}>{pratoSelecionado.nome}</p>
+                    {tamSku && <p style={{ fontSize: '12px', color: '#374151', margin: 0 }}>{tamSku}</p>}
+                    <p style={{ fontSize: '12px', color: '#374151', margin: '2px 0 0' }}>Categoria: <strong>{pratoSelecionado.categoria_prato || '—'}</strong></p>
+                  </div>
+                  <button onClick={() => { setPratoSelecionado(null); setPesquisaPrato(''); }}
+                    style={{ background: 'transparent', border: 'none', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>Trocar</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <input type="text" value={pesquisaPrato}
+                  onChange={(e) => { setPesquisaPrato(e.target.value); pesquisarPratos(e.target.value) }}
+                  placeholder="Pesquisa por nome ou SKU (mín. 2 caracteres)..."
+                  style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                {aCarregarSugestoesPratos && <p style={{ fontSize: '11px', color: '#6b7280', margin: '4px 0 0' }}>A pesquisar...</p>}
+                {sugestoesPratos.length > 0 && (
+                  <div style={{ border: '1px solid #e5e7eb', borderRadius: '6px', marginTop: '6px', maxHeight: '240px', overflowY: 'auto' }}>
+                    {sugestoesPratos.map((p) => (
+                      <button key={p.id} onClick={() => selecionarPrato(p)}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', background: '#fff', border: 'none', borderBottom: '1px solid #f3f4f6', padding: '8px 12px', cursor: 'pointer' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}>
+                        <p style={{ fontSize: '13px', fontWeight: '500', color: '#111', margin: 0 }}>{p.nome}</p>
+                        <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0' }}>
+                          {[p.tamanho, p.sku].filter(Boolean).join(' · ') || 'sem tamanho/sku'} · {p.categoria_prato || 'sem categoria'}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {pesquisaPrato.trim().length >= 2 && !aCarregarSugestoesPratos && sugestoesPratos.length === 0 && (
+                  <p style={{ fontSize: '12px', color: '#9ca3af', margin: '6px 0 0' }}>Nenhum prato encontrado.</p>
+                )}
+              </>
+            )}
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Loja de fabrico (origem) *</label>
+            {lojasFabricoDisponiveis.length === 0 ? (
+              <div style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', color: '#92400e' }}>
+                Não existe nenhuma loja com fabrico ativada. Pede a um gestor para marcar a loja de fabrico em "Gerir lojas".
+              </div>
+            ) : (
+              <select value={formRececaoLojaFabricoId} onChange={(e) => setFormRececaoLojaFabricoId(e.target.value ? Number(e.target.value) : '')}
+                style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
+                <option value="">— Seleciona a loja que produziu —</option>
+                {lojasFabricoDisponiveis.map((l) => (
+                  <option key={l.id} value={l.id}>{l.nome}</option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Lote (opcional)</label>
+            <input type="text" value={formRececaoLote} onChange={(e) => setFormRececaoLote(e.target.value)}
+              placeholder="ex: L20260505-A"
+              style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '8px' }}>Temperatura de chegada</label>
+            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '36px', fontWeight: '700', color: '#111' }}>{formRececaoTemp}°C</span>
+            </div>
+            <input type="range" min={-25} max={25} step={0.5} value={formRececaoTemp}
+              onChange={(e) => setFormRececaoTemp(Number(e.target.value))}
+              style={{ width: '100%', accentColor: '#80c944' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
+              <span>-25°C</span><span>0°C</span><span>+25°C</span>
+            </div>
+          </div>
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Receptor *</label>
+            {staff.length === 0 ? (
+              <div style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', color: '#92400e' }}>
+                Ainda não há funcionários. {ehGestor ? 'Adiciona-os em "⚙️ Configurações".' : 'Pede a um gestor para os adicionar.'}
+              </div>
+            ) : (
+              <select value={formRececaoStaff} onChange={(e) => setFormRececaoStaff(e.target.value)}
+                style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
+                <option value="">— Seleciona quem recebeu —</option>
+                {staff.map((s) => (<option key={s.id} value={s.nome}>{s.nome}</option>))}
+              </select>
+            )}
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Observações (opcional)</label>
+            <textarea value={formRececaoObs} onChange={(e) => setFormRececaoObs(e.target.value)} rows={2}
+              style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff', resize: 'vertical' }} />
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={guardarRegistoRececaoLoja}
+              disabled={aGuardarRececao || !pratoSelecionado || !formRececaoLojaFabricoId || staff.length === 0}
+              style={{
+                background: (!pratoSelecionado || !formRececaoLojaFabricoId || staff.length === 0) ? '#d1d5db' : '#80c944',
+                color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500',
+                cursor: (!pratoSelecionado || !formRececaoLojaFabricoId || staff.length === 0) ? 'not-allowed' : 'pointer'
+              }}>
+              {aGuardarRececao ? 'A guardar...' : (registoRececaoLojaEmEdicao ? 'Atualizar' : 'Guardar registo')}
             </button>
             <button onClick={fecharModalRececao} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
           </div>

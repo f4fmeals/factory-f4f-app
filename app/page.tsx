@@ -30,7 +30,7 @@ export default function Inicio() {
     router.push('/login')
   }
 
-  async function entrarNaArea(area: 'gestao' | 'cozinha' | 'haccp' | 'faltas' | 'veiculos') {
+  async function entrarNaArea(area: 'gestao' | 'cozinha' | 'haccp' | 'faltas' | 'veiculos' | 'foodcost') {
     setMensagemErro('')
     setAVerificar(true)
     const rolesPermitidos: Record<string, string[]> = {
@@ -39,6 +39,7 @@ export default function Inicio() {
       haccp: ['cozinha', 'gestor', 'lojista'],
       faltas: ['cozinha', 'gestor', 'lojista'],
       veiculos: ['cozinha', 'gestor'],
+      foodcost: ['gestor'],
     }
     if (!rolesPermitidos[area].includes(role)) {
       setMensagemErro('Não tens acesso a esta área.')
@@ -73,18 +74,6 @@ export default function Inicio() {
         <p style={{ fontSize: '15px', color: '#6b7280', marginBottom: '48px' }}>Escolhe a área que queres aceder.</p>
 
         <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '1200px' }}>
-          <button
-            onClick={() => entrarNaArea('gestao')}
-            disabled={aVerificar}
-            style={{ width: '220px', height: '180px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'border-color 0.2s' }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = '#80c944'}
-            onMouseLeave={e => e.currentTarget.style.borderColor = '#e5e7eb'}
-          >
-            <span style={{ fontSize: '48px' }}>📋</span>
-            <span style={{ fontSize: '18px', fontWeight: '500', color: '#111' }}>Gestão</span>
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>Valente Kitchen OS</span>
-          </button>
-
           <button
             onClick={() => entrarNaArea('cozinha')}
             disabled={aVerificar}
@@ -133,6 +122,38 @@ export default function Inicio() {
             <span style={{ fontSize: '12px', color: '#6b7280' }}>Manutenção e Inspeções</span>
           </button>
         </div>
+
+        {role === 'gestor' && (
+          <>
+            <div style={{ width: '100%', maxWidth: '720px', borderTop: '1px solid #e5e7eb', margin: '40px 0 32px' }} />
+            <p style={{ fontSize: '13px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '20px' }}>Área de Gestão</p>
+            <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '1200px' }}>
+              <button
+                onClick={() => entrarNaArea('gestao')}
+                disabled={aVerificar}
+                style={{ width: '220px', height: '180px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'border-color 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = '#80c944'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = '#e5e7eb'}
+              >
+                <span style={{ fontSize: '48px' }}>📋</span>
+                <span style={{ fontSize: '18px', fontWeight: '500', color: '#111' }}>Gestão</span>
+                <span style={{ fontSize: '12px', color: '#6b7280' }}>Valente Kitchen OS</span>
+              </button>
+
+              <button
+                onClick={() => entrarNaArea('foodcost')}
+                disabled={aVerificar}
+                style={{ width: '220px', height: '180px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'border-color 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = '#80c944'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = '#e5e7eb'}
+              >
+                <span style={{ fontSize: '48px' }}>💰</span>
+                <span style={{ fontSize: '18px', fontWeight: '500', color: '#111' }}>Food Cost</span>
+                <span style={{ fontSize: '12px', color: '#6b7280' }}>Custos por Prato</span>
+              </button>
+            </div>
+          </>
+        )}
 
         {mensagemErro && (
           <p style={{ marginTop: '24px', color: '#dc2626', fontSize: '14px', background: '#fee2e2', padding: '10px 20px', borderRadius: '8px' }}>
