@@ -587,7 +587,7 @@ export default function Cozinha() {
     if (data) setRegistosDesinfeccao(prev => ({ ...prev, [tarefaPreparacaoId]: { ...novoEstado, id: data.id } }))
   }
 
-  const PRINTER_URL = 'https://mitsubishi-journal-interaction-rack.trycloudflare.com/print'
+  const PRINTER_URL = 'https://merchants-phase-math-necessity.trycloudflare.com/print'
 
   function gerarZPL(dados: {
     componenteDestino: string
@@ -595,15 +595,20 @@ export default function Cozinha() {
     ingrediente: string
     quantidade: string
     data: string
+    numero?: number
+    total?: number
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
+    const contador = (dados.total && dados.total > 1 && dados.numero)
+      ? `^CF0,24\n^FO450,20^FD${dados.numero}/${dados.total}^FS\n`
+      : ''
     return `^XA
 ^PW609
 ^LL406
 ^CI28
 ^LH0,0
-^CF0,52
-^FO20,20^FB570,2,4,L^FD${esc(dados.ingrediente)}^FS
+${contador}^CF0,52
+^FO20,20^FB420,2,4,L^FD${esc(dados.ingrediente)}^FS
 ^CF0,30
 ^FO20,150^FB570,1,0,L^FD${esc(dados.componenteDestino)}^FS
 ^CF0,24
@@ -633,15 +638,20 @@ export default function Cozinha() {
     pratosDestino: string
     quantidadeFinal: string
     data: string
+    numero?: number
+    total?: number
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
+    const contador = (dados.total && dados.total > 1 && dados.numero)
+      ? `^CF0,24\n^FO450,20^FD${dados.numero}/${dados.total}^FS\n`
+      : ''
     return `^XA
 ^PW609
 ^LL406
 ^CI28
 ^LH0,0
-^CF0,52
-^FO20,20^FB570,2,4,L^FD${esc(dados.componente)}^FS
+${contador}^CF0,52
+^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,22
 ^FO20,150^FB570,2,0,L^FD${esc(dados.pratosDestino)}^FS
 ^FO20,260^GB570,2,2^FS
@@ -664,15 +674,20 @@ export default function Cozinha() {
     componente: string
     pratoDestino: string
     data: string
+    numero?: number
+    total?: number
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
+    const contador = (dados.total && dados.total > 1 && dados.numero)
+      ? `^CF0,24\n^FO450,20^FD${dados.numero}/${dados.total}^FS\n`
+      : ''
     return `^XA
 ^PW609
 ^LL406
 ^CI28
 ^LH0,0
-^CF0,52
-^FO20,20^FB570,2,4,L^FD${esc(dados.componente)}^FS
+${contador}^CF0,52
+^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,30
 ^FO20,160^FB570,2,0,L^FD${esc(dados.pratoDestino)}^FS
 ^FO20,270^GB570,2,2^FS
@@ -691,9 +706,14 @@ export default function Cozinha() {
     await enviarZPL(zpl, onImprimiu)
   }
 
-  async function imprimirVarias(zpl: string, quantidade: number, onImprimiu: () => void) {
+  async function imprimirVarias(
+    gerarZplPorIndice: (numero: number, total: number) => string,
+    quantidade: number,
+    onImprimiu: () => void
+  ) {
     try {
       for (let i = 0; i < quantidade; i++) {
+        const zpl = gerarZplPorIndice(i + 1, quantidade)
         const resposta = await fetch(PRINTER_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -938,8 +958,10 @@ export default function Cozinha() {
                                     <button
                                       onClick={() => {
                                         if (!desinfStaffOk) return
-                                        const zpl = gerarZPL({ componenteDestino: tarefa.componenteDestino, pratoDestino: tarefa.pratoDestino, ingrediente: grupo.ingredienteNome, quantidade: fmtQtd(tarefa.quantidade, tarefa.unidade), data: dataHoje() })
-                                        imprimirVarias(zpl, qtdEtiq, () => {
+                                        imprimirVarias(
+                                          (numero, total) => gerarZPL({ componenteDestino: tarefa.componenteDestino, pratoDestino: tarefa.pratoDestino, ingrediente: grupo.ingredienteNome, quantidade: fmtQtd(tarefa.quantidade, tarefa.unidade), data: dataHoje(), numero, total }),
+                                          qtdEtiq,
+                                          () => {
                                           guardarRegisto('preparacao', tarefa.tarefaId, { impressao_etiqueta: true })
                                           if (tarefa.requerDesinfeccao) {
                                             guardarRegistoDesinfeccao(tarefa.tarefaId, { concluido: true })
@@ -1191,8 +1213,11 @@ export default function Cozinha() {
                           <button
                             onClick={() => {
                               if (!podeImprimirAgora) return
-                              const zpl = gerarZPLConfeccao({ componente: comp.componenteNome, pratosDestino: pratosDestinoStr, quantidadeFinal: cfgSlider.formatar(qtdFinal), data: dataHoje() })
-                              imprimirVarias(zpl, qtdEtiq, () => guardarRegisto('confeccao', comp.componenteId, { impressao_etiqueta: true }))
+                              imprimirVarias(
+                                (numero, total) => gerarZPLConfeccao({ componente: comp.componenteNome, pratosDestino: pratosDestinoStr, quantidadeFinal: cfgSlider.formatar(qtdFinal), data: dataHoje(), numero, total }),
+                                qtdEtiq,
+                                () => guardarRegisto('confeccao', comp.componenteId, { impressao_etiqueta: true })
+                              )
                             }}
                             disabled={!podeImprimirAgora}
                             style={{
@@ -1359,8 +1384,11 @@ export default function Cozinha() {
                                 />
                                 <button
                                   onClick={() => {
-                                    const zpl = gerarZPLFinalizacao({ componente: tarefa.componenteNome, pratoDestino: prato.pratoNome, data: dataHoje() })
-                                    imprimirVarias(zpl, qtdEtiq, () => guardarRegisto('finalizacao', tarefa.tarefaId, { impressao_etiqueta: true }))
+                                    imprimirVarias(
+                                      (numero, total) => gerarZPLFinalizacao({ componente: tarefa.componenteNome, pratoDestino: prato.pratoNome, data: dataHoje(), numero, total }),
+                                      qtdEtiq,
+                                      () => guardarRegisto('finalizacao', tarefa.tarefaId, { impressao_etiqueta: true })
+                                    )
                                   }}
                                   style={{ flex: 1, height: '44px', borderRadius: '8px', border: '1px solid #d1d5db', background: '#fff', color: '#374151', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
                                   🖨 Imprimir etiqueta
