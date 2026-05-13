@@ -587,7 +587,7 @@ export default function Cozinha() {
     if (data) setRegistosDesinfeccao(prev => ({ ...prev, [tarefaPreparacaoId]: { ...novoEstado, id: data.id } }))
   }
 
-  const PRINTER_URL = 'https://merchants-phase-math-necessity.trycloudflare.com/print'
+  const PRINTER_URL = 'https://games-banner-stroke-goals.trycloudflare.com/print'
 
   function gerarZPL(dados: {
     componenteDestino: string
