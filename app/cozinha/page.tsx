@@ -809,8 +809,12 @@ ${contador}^CF0,52
       })
     })
 
+    const termoPreparacao = pesquisaPreparacao.toLowerCase()
     const gruposFiltrados = Object.values(grupos)
-      .filter(g => g.ingredienteNome.toLowerCase().includes(pesquisaPreparacao.toLowerCase()))
+      .filter(g =>
+        g.ingredienteNome.toLowerCase().includes(termoPreparacao) ||
+        g.tarefas.some(t => (t.componenteDestino || '').toLowerCase().includes(termoPreparacao))
+      )
       .sort((a, b) => a.ingredienteNome.localeCompare(b.ingredienteNome))
 
     // Construir lista plana de pills concluídos (todos os grupos)
@@ -840,7 +844,7 @@ ${contador}^CF0,52
         <div style={{ position: 'sticky', top: '97px', zIndex: 9, background: '#f9fafb', paddingBottom: '10px', borderBottom: '1px solid #e5e7eb', marginBottom: '14px' }}>
           <input
             type="text"
-            placeholder="Pesquisar ingrediente..."
+            placeholder="Pesquisar ingrediente ou componente..."
             value={pesquisaPreparacao}
             onChange={e => setPesquisaPreparacao(e.target.value)}
             style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }}
