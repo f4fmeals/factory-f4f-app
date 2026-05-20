@@ -658,8 +658,8 @@ ${contador}^CF0,52
 ^FO20,235^GB570,2,2^FS
 ^CF0,30
 ^FO20,250^FDQuantidade: ${esc(dados.quantidadeFinal)}^FS
-^CF0,22
-^FO20,310^FDENTRADA NO ABATEDOR: ${esc(dados.horaAbatedor || '')}^FS
+^CF0,30
+^FO20,300^FDENTRADA ABATEDOR: ${esc(dados.horaAbatedor || '')}^FS
 ^CF0,18
 ^FO20,370^FD${esc(dados.data)}^FS
 ^XZ`
@@ -1057,11 +1057,11 @@ ${contador}^CF0,52
 
     const ativos = todosComponentes.filter(c => {
       const reg = registos[`confeccao|${c.componenteId}`]
-      return !(reg?.concluido && reg?.impressao_etiqueta)
+      return !(reg?.concluido && reg?.impressao_etiqueta && reg?.extras === true)
     })
     const feitos = todosComponentes.filter(c => {
       const reg = registos[`confeccao|${c.componenteId}`]
-      return reg?.concluido && reg?.impressao_etiqueta
+      return reg?.concluido && reg?.impressao_etiqueta && reg?.extras === true
     })
 
     return (
@@ -1129,8 +1129,16 @@ ${contador}^CF0,52
                 )
               }
 
+              const emArrefecimento = (reg.concluido && reg.impressao_etiqueta) && reg.extras !== true
+              const corFundo = emArrefecimento ? '#eff6ff' : '#f0fdf4'
+              const corBorda = emArrefecimento ? '#93c5fd' : '#86efac'
               return (
-                <div key={comp.componenteId} style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div key={comp.componenteId} style={{ background: corFundo, border: `1px solid ${corBorda}`, borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', position: 'relative', borderLeft: emArrefecimento ? '6px solid #2563eb' : `1px solid ${corBorda}` }}>
+                  {emArrefecimento && (
+                    <div style={{ position: 'absolute', top: '12px', right: '12px', background: '#2563eb', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '4px 10px', borderRadius: '99px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Em arrefecimento
+                    </div>
+                  )}
                   <div>
                     <p style={{ fontSize: '17px', fontWeight: '500', color: '#111', margin: '0 0 2px' }}>{comp.componenteNome}</p>
                     <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>{fmtQtd(comp.quantidadeTotal, comp.unidade)}</p>
@@ -1213,7 +1221,7 @@ ${contador}^CF0,52
                     const podeImprimirAgora = podeImprimir && staffOk
                     const chaveEtiq = `confeccao|${comp.componenteId}`
                     const qtdEtiq = numEtiquetas[chaveEtiq] || 1
-                    const labelBotao = !podeImprimir ? 'Define a quantidade final' : !staffOk ? 'Seleciona o funcionário' : '🖨 Imprimir etiqueta'
+                    const labelBotao = !podeImprimir ? 'Define a quantidade final' : !staffOk ? 'Seleciona o funcionário' : (emArrefecimento ? '🖨 Reimprimir etiquetas' : '🖨 Imprimir etiqueta')
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1247,13 +1255,21 @@ ${contador}^CF0,52
                           </button>
                         </div>
                         <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px', display: 'flex', gap: '8px' }}>
-                          <button
-                            onClick={() => podeImprimirAgora && guardarRegisto('confeccao', comp.componenteId, { impressao_etiqueta: true })}
-                            disabled={!podeImprimirAgora}
-                            style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: '#f3f4f6', color: podeImprimirAgora ? '#6b7280' : '#d1d5db', fontSize: '12px', cursor: podeImprimirAgora ? 'pointer' : 'not-allowed' }}>
-                            Concluir sem imprimir
-                          </button>
-                          <button onClick={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false, impressao_etiqueta: false })}
+                          {emArrefecimento ? (
+                            <button
+                              onClick={() => guardarRegisto('confeccao', comp.componenteId, { extras: true })}
+                              style={{ flex: 1, padding: '10px', borderRadius: '6px', border: 'none', background: '#2563eb', color: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+                              ✓ Arrefecimento concluído
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => podeImprimirAgora && guardarRegisto('confeccao', comp.componenteId, { impressao_etiqueta: true })}
+                              disabled={!podeImprimirAgora}
+                              style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: '#f3f4f6', color: podeImprimirAgora ? '#6b7280' : '#d1d5db', fontSize: '12px', cursor: podeImprimirAgora ? 'pointer' : 'not-allowed' }}>
+                              Concluir sem imprimir
+                            </button>
+                          )}
+                          <button onClick={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false, impressao_etiqueta: false, extras: null })}
                             style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: '#f3f4f6', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>
                             Desfazer
                           </button>
@@ -1283,7 +1299,7 @@ ${contador}^CF0,52
                 <PillConcluido
                   key={comp.componenteId}
                   label={label}
-                  onDesfazer={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false, impressao_etiqueta: false })}
+                  onDesfazer={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false, impressao_etiqueta: false, extras: null })}
                 />
               )
             })}
