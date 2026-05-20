@@ -600,7 +600,7 @@ export default function Cozinha() {
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,24\n^FO450,20^FD${dados.numero}/${dados.total}^FS\n`
+      ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
 ^PW609
@@ -638,12 +638,13 @@ ${contador}^CF0,52
     pratosDestino: string
     quantidadeFinal: string
     data: string
+    horaAbatedor?: string
     numero?: number
     total?: number
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,24\n^FO450,20^FD${dados.numero}/${dados.total}^FS\n`
+      ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
 ^PW609
@@ -654,16 +655,18 @@ ${contador}^CF0,52
 ^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,22
 ^FO20,150^FB570,2,0,L^FD${esc(dados.pratosDestino)}^FS
-^FO20,260^GB570,2,2^FS
+^FO20,235^GB570,2,2^FS
 ^CF0,30
-^FO20,280^FDQuantidade: ${esc(dados.quantidadeFinal)}^FS
+^FO20,250^FDQuantidade: ${esc(dados.quantidadeFinal)}^FS
+^CF0,22
+^FO20,310^FDENTRADA NO ABATEDOR: ${esc(dados.horaAbatedor || '')}^FS
 ^CF0,18
 ^FO20,370^FD${esc(dados.data)}^FS
 ^XZ`
   }
 
   async function imprimirEtiquetaConfeccao(
-    dados: { componente: string; pratosDestino: string; quantidadeFinal: string; data: string },
+    dados: { componente: string; pratosDestino: string; quantidadeFinal: string; data: string; horaAbatedor?: string },
     onImprimiu: () => void
   ) {
     const zpl = gerarZPLConfeccao(dados)
@@ -679,7 +682,7 @@ ${contador}^CF0,52
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,24\n^FO450,20^FD${dados.numero}/${dados.total}^FS\n`
+      ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
 ^PW609
@@ -767,6 +770,11 @@ ${contador}^CF0,52
   function dataHoje() {
     const d = new Date()
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+  }
+
+  function horaAgora() {
+    const d = new Date()
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   }
 
   async function handleLogout() {
@@ -1218,7 +1226,7 @@ ${contador}^CF0,52
                             onClick={() => {
                               if (!podeImprimirAgora) return
                               imprimirVarias(
-                                (numero, total) => gerarZPLConfeccao({ componente: comp.componenteNome, pratosDestino: pratosDestinoStr, quantidadeFinal: cfgSlider.formatar(qtdFinal), data: dataHoje(), numero, total }),
+                                (numero, total) => gerarZPLConfeccao({ componente: comp.componenteNome, pratosDestino: pratosDestinoStr, quantidadeFinal: cfgSlider.formatar(qtdFinal), data: dataHoje(), horaAbatedor: horaAgora(), numero, total }),
                                 qtdEtiq,
                                 () => guardarRegisto('confeccao', comp.componenteId, { impressao_etiqueta: true })
                               )
