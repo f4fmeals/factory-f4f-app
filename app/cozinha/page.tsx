@@ -675,15 +675,21 @@ ${contador}^CF0,52
     await enviarZPL(zpl, onImprimiu)
   }
 
-  function calcularTempoArrefecimento(horaEntrada: string): string {
-    if (!horaEntrada) return ''
+  function calcularTempoArrefecimentoMinutos(horaEntrada: string): number {
+    if (!horaEntrada) return 0
     const [h, m] = horaEntrada.split(':').map(Number)
-    if (isNaN(h) || isNaN(m)) return ''
+    if (isNaN(h) || isNaN(m)) return 0
     const agora = new Date()
     const entrada = new Date()
     entrada.setHours(h, m, 0, 0)
     let diffMin = Math.floor((agora.getTime() - entrada.getTime()) / 60000)
     if (diffMin < 0) diffMin += 24 * 60 // caso passe da meia-noite
+    return diffMin
+  }
+
+  function calcularTempoArrefecimento(horaEntrada: string): string {
+    const diffMin = calcularTempoArrefecimentoMinutos(horaEntrada)
+    if (diffMin === 0 && !horaEntrada) return ''
     const horas = Math.floor(diffMin / 60)
     const minutos = diffMin % 60
     if (horas === 0) return `${minutos}min`
@@ -1145,7 +1151,7 @@ ${contador}^CF0,52
               const qtdFinal = reg.quantidade_final ?? 0
               const tempConf = reg.temperatura_confeccao ?? 75
               const tempAbat = reg.temperatura_abatimento ?? 6
-              const tempArref = reg.tempo_arrefecimento ?? 60
+              const tempArref = reg.tempo_arrefecimento ?? 0
               const confOk = tempConf >= 75
               const abatOk = tempAbat >= 2 && tempAbat <= 6
               const arrefOk = tempArref >= 20 && tempArref <= 120
@@ -1241,20 +1247,26 @@ ${contador}^CF0,52
                     />
                   </div>
 
-                  <div>
-                    <label style={estiloLabel}>
-                      Tempo de arrefecimento — <span style={{ color: arrefOk ? '#16a34a' : '#dc2626', fontWeight: '500' }}>{arrefOk ? '✓ OK' : '⚠ Entre 20 min e 2h'}</span>
-                    </label>
-                    <SliderComBotoes
-                      valor={tempArref}
-                      min={0}
-                      max={180}
-                      step={1}
-                      onChange={v => guardarRegisto('confeccao', comp.componenteId, { tempo_arrefecimento: Math.round(v) })}
-                      formatarValor={v => `${Math.round(v)} min`}
-                      corValor={arrefOk ? '#16a34a' : '#dc2626'}
-                    />
-                  </div>
+                  {emArrefecimento && reg.hora_entrada_abatedor && (
+                    <div>
+                      <label style={estiloLabel}>
+                        Tempo de arrefecimento (automático)
+                      </label>
+                      <div style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #e5e7eb', background: '#f9fafb', fontSize: '15px', fontWeight: '600', color: '#111827' }}>
+                        {calcularTempoArrefecimento(reg.hora_entrada_abatedor)} (em curso)
+                      </div>
+                    </div>
+                  )}
+                  {tempArref > 0 && (
+                    <div>
+                      <label style={estiloLabel}>
+                        Tempo de arrefecimento final — <span style={{ color: arrefOk ? '#16a34a' : '#dc2626', fontWeight: '500' }}>{arrefOk ? '✓ OK' : '⚠ Entre 20 min e 2h'}</span>
+                      </label>
+                      <div style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid ' + (arrefOk ? '#86efac' : '#fecaca'), background: arrefOk ? '#f0fdf4' : '#fef2f2', fontSize: '15px', fontWeight: '600', color: arrefOk ? '#16a34a' : '#dc2626' }}>
+                        {tempArref} min
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <label style={estiloLabel}>Funcionário</label>
@@ -1288,10 +1300,11 @@ ${contador}^CF0,52
                               if (emArrefecimento) {
                                 const horaEntrada = reg.hora_entrada_abatedor || ''
                                 const tempoArref = calcularTempoArrefecimento(horaEntrada)
+                                const tempoArrefMin = calcularTempoArrefecimentoMinutos(horaEntrada)
                                 imprimirVarias(
                                   (numero, total) => gerarZPLConfeccaoArrefecido({ componente: comp.componenteNome, pratosDestino: pratosDestinoStr, quantidadeFinal: cfgSlider.formatar(qtdFinal), data: dataHoje(), horaAbatedor: horaEntrada, tempoArrefecimento: tempoArref, numero, total }),
                                   qtdEtiq,
-                                  () => {}
+                                  () => guardarRegisto('confeccao', comp.componenteId, { tempo_arrefecimento: tempoArrefMin })
                                 )
                               } else {
                                 const horaEntrada = horaAgora()
