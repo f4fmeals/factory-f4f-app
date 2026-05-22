@@ -1257,7 +1257,7 @@ ${contador}^CF0,52
                       </div>
                     </div>
                   )}
-                  {tempArref > 0 && reg.hora_entrada_abatedor && (
+                  {tempArref > 0 && reg.hora_entrada_abatedor && !emArrefecimento && (
                     <div>
                       <label style={estiloLabel}>
                         Tempo de arrefecimento final — <span style={{ color: arrefOk ? '#16a34a' : '#dc2626', fontWeight: '500' }}>{arrefOk ? '✓ OK' : '⚠ Entre 20 min e 2h'}</span>
@@ -1345,7 +1345,7 @@ ${contador}^CF0,52
                               Concluir sem imprimir
                             </button>
                           )}
-                          <button onClick={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false, impressao_etiqueta: false, extras: null })}
+                          <button onClick={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false, impressao_etiqueta: false, extras: null, tempo_arrefecimento: null, hora_entrada_abatedor: null })}
                             style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: '#f3f4f6', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>
                             Desfazer
                           </button>
