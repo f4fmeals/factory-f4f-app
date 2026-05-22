@@ -1311,7 +1311,7 @@ ${contador}^CF0,52
                                 imprimirVarias(
                                   (numero, total) => gerarZPLConfeccao({ componente: comp.componenteNome, pratosDestino: pratosDestinoStr, quantidadeFinal: cfgSlider.formatar(qtdFinal), data: dataHoje(), horaAbatedor: horaEntrada, numero, total }),
                                   qtdEtiq,
-                                  () => guardarRegisto('confeccao', comp.componenteId, { impressao_etiqueta: true, hora_entrada_abatedor: horaEntrada })
+                                  () => guardarRegisto('confeccao', comp.componenteId, { impressao_etiqueta: true, hora_entrada_abatedor: horaEntrada, tempo_arrefecimento: null })
                                 )
                               }
                             }}
@@ -1333,7 +1333,10 @@ ${contador}^CF0,52
                         <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px', display: 'flex', gap: '8px' }}>
                           {emArrefecimento ? (
                             <button
-                              onClick={() => guardarRegisto('confeccao', comp.componenteId, { extras: true })}
+                              onClick={() => {
+                                const tempoArrefMin = reg.hora_entrada_abatedor ? calcularTempoArrefecimentoMinutos(reg.hora_entrada_abatedor) : (reg.tempo_arrefecimento ?? 0)
+                                guardarRegisto('confeccao', comp.componenteId, { extras: true, tempo_arrefecimento: tempoArrefMin })
+                              }}
                               style={{ flex: 1, padding: '10px', borderRadius: '6px', border: 'none', background: '#2563eb', color: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
                               ✓ Arrefecimento concluído
                             </button>
