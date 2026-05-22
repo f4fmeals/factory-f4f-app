@@ -91,6 +91,7 @@ type Registo = {
   quantidade_extras: number | null
   impressao_etiqueta: boolean
   nome_staff: string | null
+  hora_entrada_abatedor: string | null
 }
 
 type RegistoEmbalamento = {
@@ -373,6 +374,7 @@ export default function Cozinha() {
             quantidade_extras: r.quantidade_extras,
             impressao_etiqueta: r.impressao_etiqueta || false,
             nome_staff: r.nome_staff || null,
+            hora_entrada_abatedor: r.hora_entrada_abatedor || null,
           }
         }))
       }
@@ -434,7 +436,7 @@ export default function Cozinha() {
           try { if (r.quantidade_extras) extrasPorTamanho = JSON.parse(r.quantidade_extras) } catch {}
           mapaEmb[chave] = { id: r.id, concluido: r.concluido, extras: r.extras, extrasPorTamanho, etiquetasImpressas: r.observacoes === 'etiquetas_impressas' }
         } else {
-          mapa[`${r.setor}|${r.referencia_id}`] = { id: r.id, concluido: r.concluido, quantidade_final: r.quantidade_final, temperatura_confeccao: r.temperatura_confeccao, temperatura_abatimento: r.temperatura_abatimento, tempo_arrefecimento: r.tempo_arrefecimento, extras: r.extras, quantidade_extras: r.quantidade_extras, impressao_etiqueta: r.impressao_etiqueta || false, nome_staff: r.nome_staff || null }
+          mapa[`${r.setor}|${r.referencia_id}`] = { id: r.id, concluido: r.concluido, quantidade_final: r.quantidade_final, temperatura_confeccao: r.temperatura_confeccao, temperatura_abatimento: r.temperatura_abatimento, tempo_arrefecimento: r.tempo_arrefecimento, extras: r.extras, quantidade_extras: r.quantidade_extras, impressao_etiqueta: r.impressao_etiqueta || false, nome_staff: r.nome_staff || null, hora_entrada_abatedor: r.hora_entrada_abatedor || null }
         }
       })
       setRegistos(mapa)
@@ -671,6 +673,56 @@ ${contador}^CF0,52
   ) {
     const zpl = gerarZPLConfeccao(dados)
     await enviarZPL(zpl, onImprimiu)
+  }
+
+  function calcularTempoArrefecimento(horaEntrada: string): string {
+    if (!horaEntrada) return ''
+    const [h, m] = horaEntrada.split(':').map(Number)
+    if (isNaN(h) || isNaN(m)) return ''
+    const agora = new Date()
+    const entrada = new Date()
+    entrada.setHours(h, m, 0, 0)
+    let diffMin = Math.floor((agora.getTime() - entrada.getTime()) / 60000)
+    if (diffMin < 0) diffMin += 24 * 60 // caso passe da meia-noite
+    const horas = Math.floor(diffMin / 60)
+    const minutos = diffMin % 60
+    if (horas === 0) return `${minutos}min`
+    return `${horas}h ${minutos}min`
+  }
+
+  function gerarZPLConfeccaoArrefecido(dados: {
+    componente: string
+    pratosDestino: string
+    quantidadeFinal: string
+    data: string
+    horaAbatedor: string
+    tempoArrefecimento: string
+    numero?: number
+    total?: number
+  }) {
+    const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
+    const contador = (dados.total && dados.total > 1 && dados.numero)
+      ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
+      : ''
+    return `^XA
+^PW609
+^LL406
+^CI28
+^LH0,0
+${contador}^CF0,52
+^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
+^CF0,22
+^FO20,150^FB570,2,0,L^FD${esc(dados.pratosDestino)}^FS
+^FO20,235^GB570,2,2^FS
+^CF0,26
+^FO20,250^FDQuantidade: ${esc(dados.quantidadeFinal)}^FS
+^CF0,26
+^FO20,290^FDENTRADA ABATEDOR: ${esc(dados.horaAbatedor)}^FS
+^CF0,26
+^FO20,325^FDARREFECIMENTO: ${esc(dados.tempoArrefecimento)}^FS
+^CF0,18
+^FO20,375^FD${esc(dados.data)}^FS
+^XZ`
   }
 
   function gerarZPLFinalizacao(dados: {
@@ -1221,7 +1273,7 @@ ${contador}^CF0,52
                     const podeImprimirAgora = podeImprimir && staffOk
                     const chaveEtiq = `confeccao|${comp.componenteId}`
                     const qtdEtiq = numEtiquetas[chaveEtiq] || 1
-                    const labelBotao = !podeImprimir ? 'Define a quantidade final' : !staffOk ? 'Seleciona o funcionário' : (emArrefecimento ? '🖨 Reimprimir etiquetas' : '🖨 Imprimir etiqueta')
+                    const labelBotao = !podeImprimir ? 'Define a quantidade final' : !staffOk ? 'Seleciona o funcionário' : (emArrefecimento ? '🖨 Imprimir etiqueta (Produto arrefecido)' : '🖨 Imprimir etiqueta')
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1233,11 +1285,22 @@ ${contador}^CF0,52
                           <button
                             onClick={() => {
                               if (!podeImprimirAgora) return
-                              imprimirVarias(
-                                (numero, total) => gerarZPLConfeccao({ componente: comp.componenteNome, pratosDestino: pratosDestinoStr, quantidadeFinal: cfgSlider.formatar(qtdFinal), data: dataHoje(), horaAbatedor: horaAgora(), numero, total }),
-                                qtdEtiq,
-                                () => guardarRegisto('confeccao', comp.componenteId, { impressao_etiqueta: true })
-                              )
+                              if (emArrefecimento) {
+                                const horaEntrada = reg.hora_entrada_abatedor || ''
+                                const tempoArref = calcularTempoArrefecimento(horaEntrada)
+                                imprimirVarias(
+                                  (numero, total) => gerarZPLConfeccaoArrefecido({ componente: comp.componenteNome, pratosDestino: pratosDestinoStr, quantidadeFinal: cfgSlider.formatar(qtdFinal), data: dataHoje(), horaAbatedor: horaEntrada, tempoArrefecimento: tempoArref, numero, total }),
+                                  qtdEtiq,
+                                  () => {}
+                                )
+                              } else {
+                                const horaEntrada = horaAgora()
+                                imprimirVarias(
+                                  (numero, total) => gerarZPLConfeccao({ componente: comp.componenteNome, pratosDestino: pratosDestinoStr, quantidadeFinal: cfgSlider.formatar(qtdFinal), data: dataHoje(), horaAbatedor: horaEntrada, numero, total }),
+                                  qtdEtiq,
+                                  () => guardarRegisto('confeccao', comp.componenteId, { impressao_etiqueta: true, hora_entrada_abatedor: horaEntrada })
+                                )
+                              }
                             }}
                             disabled={!podeImprimirAgora}
                             style={{
