@@ -1257,7 +1257,7 @@ ${contador}^CF0,52
                       </div>
                     </div>
                   )}
-                  {tempArref > 0 && (
+                  {tempArref > 0 && reg.hora_entrada_abatedor && (
                     <div>
                       <label style={estiloLabel}>
                         Tempo de arrefecimento final — <span style={{ color: arrefOk ? '#16a34a' : '#dc2626', fontWeight: '500' }}>{arrefOk ? '✓ OK' : '⚠ Entre 20 min e 2h'}</span>
