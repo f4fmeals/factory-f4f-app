@@ -591,6 +591,19 @@ export default function Cozinha() {
 
   const PRINTER_URL = 'https://impressora.f4fmeals.com/print'
 
+  // ── ETIQUETAS EM PORTRAIT (rolo rodado 90° à esquerda) ────────
+  // O conteúdo é desenhado no sistema de coordenadas original (609 x 406 dots = landscape lógico),
+  // mas o ^PO I (Print Orientation Invert) + ^FWR (Field Word Rotation Right) faz com que
+  // a impressora rode toda a etiqueta 90° à esquerda para sair no rolo portrait.
+  //
+  // Dimensões físicas reais do label (portrait):
+  //   ^PW406  (largura física do rolo = antiga altura)
+  //   ^LL609  (comprimento físico = antiga largura)
+  //
+  // ^FWR roda cada campo 90° à direita relativamente à origem; combinado com ^LH0,0 e mantendo
+  // as coordenadas ^FO inalteradas, o resultado é o desenho original rodado 90° à esquerda
+  // (o topo da etiqueta original passa a ficar do lado direito do rolo portrait).
+
   function gerarZPL(dados: {
     componenteDestino: string
     pratoDestino: string
@@ -602,26 +615,24 @@ export default function Cozinha() {
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,36
-^FO440,60^FD${dados.numero}/${dados.total}^FS
-`
+      ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW448
-^LL600
+^PW406
+^LL609
 ^CI28
 ^LH0,0
-^FWB
-${contador}^CF0,55
-^FO380,20^FB560,2,4,L^FD${esc(dados.ingrediente)}^FS
+^FWR
+^CF0,52
+^FO20,20^FB420,2,4,L^FD${esc(dados.ingrediente)}^FS
 ^CF0,30
-^FO320,20^FB560,1,0,L^FD${esc(dados.componenteDestino)}^FS
-^CF0,26
-^FO275,20^FB560,2,0,L^FD-> ${esc(dados.pratoDestino)} (${esc(dados.quantidade)})^FS
-^CF0,22
-^FO50,20^FD${esc(dados.data)}^FS
-^FO80,520^GFA,1770,1770,15,,:::::::::::::::::gG03JF,I07LF8I01FFC0MF8,I0MFCI03FFC1MF8,I0MFCI03FFE1MF8,I0MFCI07FFC1MF8,:I0MFCI0IFC1MF8,:I0MFCI0IFE1MF8,I0MFC001IFE1MF8,:I0MF8003IFE1MF8,I0IFM03IFE1IF,I0IFM03IFE1FFE,I0IFM07IFE1FFE,I0IFM07IFE1IF,I0IFM0JFE1IF,:I0IFL01JFE1IF,I07FFL01JFE1IF,I0IFL01JFE1IF,I0IFL03JFE1IF,:I0IFL07JFE1IF,I07FFL07FEFFE1IF,I07FFL0FFCFFE1IF,:I07FFL0FF8FFE1IF,I07FFK01FF8FFE1IF,:I07FFK03FF0FFE1IF,:I07FFK03FE0FFE1IF,I07FFK07FE0FFE1IF,:I07FFK0FFC0FFE1IF,:I07FFJ01FF80FFE1IF,::I07FFJ03FF00FFE1IF,:I07FFJ07FE00FFE1IF,::I07FFJ0FFC00FFE1IF,:I07FFI01FFC00FFE1KF8,I07JFC1TFC,:::::::::I07FFN01FFE1KF,I07FFO0FFE0IF,I07FFO0FFE1IF,:::::::I07FFO0FFE0IF,I07FFO0FFE1IF,I07FFO0FFC0FFE,,:::V07OF8,I07gHFC,::::I07IFC2,,:::::::::::::::::^FS
-^XZ`
+^FO20,150^FB570,1,0,L^FD${esc(dados.componenteDestino)}^FS
+^CF0,24
+^FO20,200^FB570,2,0,L^FD-> ${esc(dados.pratoDestino)} (${esc(dados.quantidade)})^FS
+^FO20,300^GB570,2,2^FS
+^CF0,18
+^FO20,370^FD${esc(dados.data)}^FS
+${contador}^XZ`
   }
 
   async function imprimirEtiqueta(
@@ -649,28 +660,26 @@ ${contador}^CF0,55
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,36
-^FO440,60^FD${dados.numero}/${dados.total}^FS
-`
+      ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW448
-^LL600
+^PW406
+^LL609
 ^CI28
 ^LH0,0
-^FWB
-${contador}^CF0,40
-^FO40,20^FB560,2,4,L^FD${esc(dados.componente)}^FS
+^FWR
+^CF0,52
+^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,22
-^FO95,20^FB560,2,0,L^FD${esc(dados.pratosDestino)}^FS
-^FO165,20^GB560,2,2^FS
-^CF0,24
-^FO180,20^FDQuantidade: ${esc(dados.quantidadeFinal)}^FS
-^CF0,24
-^FO215,20^FDENTRADA ABATEDOR: ${esc(dados.horaAbatedor || '')}^FS
+^FO20,150^FB570,2,0,L^FD${esc(dados.pratosDestino)}^FS
+^FO20,235^GB570,2,2^FS
+^CF0,30
+^FO20,250^FDQuantidade: ${esc(dados.quantidadeFinal)}^FS
+^CF0,30
+^FO20,300^FDENTRADA ABATEDOR: ${esc(dados.horaAbatedor || '')}^FS
 ^CF0,18
-^FO250,20^FD${esc(dados.data)}^FS
-^XZ`
+^FO20,370^FD${esc(dados.data)}^FS
+${contador}^XZ`
   }
 
   async function imprimirEtiquetaConfeccao(
@@ -714,30 +723,28 @@ ${contador}^CF0,40
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,36
-^FO440,60^FD${dados.numero}/${dados.total}^FS
-`
+      ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW448
-^LL600
+^PW406
+^LL609
 ^CI28
 ^LH0,0
-^FWB
-${contador}^CF0,40
-^FO40,20^FB560,2,4,L^FD${esc(dados.componente)}^FS
+^FWR
+^CF0,52
+^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,22
-^FO95,20^FB560,2,0,L^FD${esc(dados.pratosDestino)}^FS
-^FO165,20^GB560,2,2^FS
-^CF0,22
-^FO180,20^FDQuantidade: ${esc(dados.quantidadeFinal)}^FS
-^CF0,22
-^FO210,20^FDENTRADA ABATEDOR: ${esc(dados.horaAbatedor)}^FS
-^CF0,22
-^FO240,20^FDARREFECIMENTO: ${esc(dados.tempoArrefecimento)}^FS
+^FO20,150^FB570,2,0,L^FD${esc(dados.pratosDestino)}^FS
+^FO20,235^GB570,2,2^FS
+^CF0,26
+^FO20,250^FDQuantidade: ${esc(dados.quantidadeFinal)}^FS
+^CF0,26
+^FO20,290^FDENTRADA ABATEDOR: ${esc(dados.horaAbatedor)}^FS
+^CF0,26
+^FO20,325^FDARREFECIMENTO: ${esc(dados.tempoArrefecimento)}^FS
 ^CF0,18
-^FO275,20^FD${esc(dados.data)}^FS
-^XZ`
+^FO20,375^FD${esc(dados.data)}^FS
+${contador}^XZ`
   }
 
   function gerarZPLFinalizacao(dados: {
@@ -749,26 +756,24 @@ ${contador}^CF0,40
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,36
-^FO440,60^FD${dados.numero}/${dados.total}^FS
-`
+      ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW448
-^LL600
+^PW406
+^LL609
 ^CI28
 ^LH0,0
-^FWB
-${contador}^CF0,40
-^FO40,20^FB560,2,4,L^FD${esc(dados.componente)}^FS
-^CF0,26
-^FO100,20^FB560,2,0,L^FD${esc(dados.pratoDestino)}^FS
-^FO180,20^GB560,2,2^FS
-^CF0,22
-^FO200,20^FD(Produto Finalizado)^FS
+^FWR
+^CF0,52
+^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
+^CF0,30
+^FO20,160^FB570,2,0,L^FD${esc(dados.pratoDestino)}^FS
+^FO20,270^GB570,2,2^FS
+^CF0,28
+^FO20,290^FD(Produto Finalizado)^FS
 ^CF0,18
-^FO250,20^FD${esc(dados.data)}^FS
-^XZ`
+^FO20,370^FD${esc(dados.data)}^FS
+${contador}^XZ`
   }
 
   async function imprimirEtiquetaFinalizacao(
