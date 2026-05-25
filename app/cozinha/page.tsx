@@ -609,6 +609,7 @@ export default function Cozinha() {
 ^LL600
 ^CI28
 ^LH0,0
+^POI
 ${contador}^CF0,52
 ^FO20,20^FB420,2,4,L^FD${esc(dados.ingrediente)}^FS
 ^CF0,30
@@ -653,6 +654,7 @@ ${contador}^CF0,52
 ^LL600
 ^CI28
 ^LH0,0
+^POI
 ${contador}^CF0,52
 ^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,22
@@ -715,6 +717,7 @@ ${contador}^CF0,52
 ^LL600
 ^CI28
 ^LH0,0
+^POI
 ${contador}^CF0,52
 ^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,22
@@ -747,6 +750,7 @@ ${contador}^CF0,52
 ^LL600
 ^CI28
 ^LH0,0
+^POI
 ${contador}^CF0,52
 ^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,30
