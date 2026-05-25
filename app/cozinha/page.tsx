@@ -602,7 +602,9 @@ export default function Cozinha() {
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
+      ? `^CF0,36
+^FO440,60^FD${dados.numero}/${dados.total}^FS
+`
       : ''
     return `^XA
 ^PW448
@@ -647,7 +649,9 @@ ${contador}^CF0,40
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
+      ? `^CF0,36
+^FO440,60^FD${dados.numero}/${dados.total}^FS
+`
       : ''
     return `^XA
 ^PW448
@@ -710,7 +714,9 @@ ${contador}^CF0,40
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
+      ? `^CF0,36
+^FO440,60^FD${dados.numero}/${dados.total}^FS
+`
       : ''
     return `^XA
 ^PW448
@@ -743,7 +749,9 @@ ${contador}^CF0,40
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
+      ? `^CF0,36
+^FO440,60^FD${dados.numero}/${dados.total}^FS
+`
       : ''
     return `^XA
 ^PW448
