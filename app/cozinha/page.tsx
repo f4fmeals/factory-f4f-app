@@ -605,11 +605,10 @@ export default function Cozinha() {
       ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW448
-^LL600
+^PW609
+^LL406
 ^CI28
 ^LH0,0
-^POI
 ${contador}^CF0,52
 ^FO20,20^FB420,2,4,L^FD${esc(dados.ingrediente)}^FS
 ^CF0,30
@@ -650,11 +649,10 @@ ${contador}^CF0,52
       ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW448
-^LL600
+^PW609
+^LL406
 ^CI28
 ^LH0,0
-^POI
 ${contador}^CF0,52
 ^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,22
@@ -713,11 +711,10 @@ ${contador}^CF0,52
       ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW448
-^LL600
+^PW609
+^LL406
 ^CI28
 ^LH0,0
-^POI
 ${contador}^CF0,52
 ^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,22
@@ -746,11 +743,10 @@ ${contador}^CF0,52
       ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW448
-^LL600
+^PW609
+^LL406
 ^CI28
 ^LH0,0
-^POI
 ${contador}^CF0,52
 ^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,30
