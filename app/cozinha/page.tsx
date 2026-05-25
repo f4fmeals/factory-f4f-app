@@ -605,20 +605,20 @@ export default function Cozinha() {
       ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW609
-^LL448
+^PW448
+^LL600
 ^CI28
 ^LH0,0
-^POI
-${contador}^CF0,52
-^FO20,20^FB420,2,4,L^FD${esc(dados.ingrediente)}^FS
-^CF0,30
-^FO20,150^FB570,1,0,L^FD${esc(dados.componenteDestino)}^FS
-^CF0,24
-^FO20,200^FB570,2,0,L^FD-> ${esc(dados.pratoDestino)} (${esc(dados.quantidade)})^FS
-^FO20,300^GB570,2,2^FS
+^FWB
+${contador}^CF0,40
+^FO40,20^FB560,2,4,L^FD${esc(dados.ingrediente)}^FS
+^CF0,26
+^FO95,20^FB560,1,0,L^FD${esc(dados.componenteDestino)}^FS
+^CF0,22
+^FO135,20^FB560,2,0,L^FD-> ${esc(dados.pratoDestino)} (${esc(dados.quantidade)})^FS
+^FO215,20^GB560,2,2^FS
 ^CF0,18
-^FO20,370^FD${esc(dados.data)}^FS
+^FO240,20^FD${esc(dados.data)}^FS
 ^XZ`
   }
 
@@ -650,22 +650,22 @@ ${contador}^CF0,52
       ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW609
-^LL448
+^PW448
+^LL600
 ^CI28
 ^LH0,0
-^POI
-${contador}^CF0,52
-^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
+^FWB
+${contador}^CF0,40
+^FO40,20^FB560,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,22
-^FO20,150^FB570,2,0,L^FD${esc(dados.pratosDestino)}^FS
-^FO20,235^GB570,2,2^FS
-^CF0,30
-^FO20,250^FDQuantidade: ${esc(dados.quantidadeFinal)}^FS
-^CF0,30
-^FO20,300^FDENTRADA ABATEDOR: ${esc(dados.horaAbatedor || '')}^FS
+^FO95,20^FB560,2,0,L^FD${esc(dados.pratosDestino)}^FS
+^FO165,20^GB560,2,2^FS
+^CF0,24
+^FO180,20^FDQuantidade: ${esc(dados.quantidadeFinal)}^FS
+^CF0,24
+^FO215,20^FDENTRADA ABATEDOR: ${esc(dados.horaAbatedor || '')}^FS
 ^CF0,18
-^FO20,370^FD${esc(dados.data)}^FS
+^FO250,20^FD${esc(dados.data)}^FS
 ^XZ`
   }
 
@@ -713,24 +713,24 @@ ${contador}^CF0,52
       ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW609
-^LL448
+^PW448
+^LL600
 ^CI28
 ^LH0,0
-^POI
-${contador}^CF0,52
-^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
+^FWB
+${contador}^CF0,40
+^FO40,20^FB560,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,22
-^FO20,150^FB570,2,0,L^FD${esc(dados.pratosDestino)}^FS
-^FO20,235^GB570,2,2^FS
-^CF0,26
-^FO20,250^FDQuantidade: ${esc(dados.quantidadeFinal)}^FS
-^CF0,26
-^FO20,290^FDENTRADA ABATEDOR: ${esc(dados.horaAbatedor)}^FS
-^CF0,26
-^FO20,325^FDARREFECIMENTO: ${esc(dados.tempoArrefecimento)}^FS
+^FO95,20^FB560,2,0,L^FD${esc(dados.pratosDestino)}^FS
+^FO165,20^GB560,2,2^FS
+^CF0,22
+^FO180,20^FDQuantidade: ${esc(dados.quantidadeFinal)}^FS
+^CF0,22
+^FO210,20^FDENTRADA ABATEDOR: ${esc(dados.horaAbatedor)}^FS
+^CF0,22
+^FO240,20^FDARREFECIMENTO: ${esc(dados.tempoArrefecimento)}^FS
 ^CF0,18
-^FO20,375^FD${esc(dados.data)}^FS
+^FO275,20^FD${esc(dados.data)}^FS
 ^XZ`
   }
 
@@ -746,20 +746,20 @@ ${contador}^CF0,52
       ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW609
-^LL448
+^PW448
+^LL600
 ^CI28
 ^LH0,0
-^POI
-${contador}^CF0,52
-^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
-^CF0,30
-^FO20,160^FB570,2,0,L^FD${esc(dados.pratoDestino)}^FS
-^FO20,270^GB570,2,2^FS
-^CF0,28
-^FO20,290^FD(Produto Finalizado)^FS
+^FWB
+${contador}^CF0,40
+^FO40,20^FB560,2,4,L^FD${esc(dados.componente)}^FS
+^CF0,26
+^FO100,20^FB560,2,0,L^FD${esc(dados.pratoDestino)}^FS
+^FO180,20^GB560,2,2^FS
+^CF0,22
+^FO200,20^FD(Produto Finalizado)^FS
 ^CF0,18
-^FO20,370^FD${esc(dados.data)}^FS
+^FO250,20^FD${esc(dados.data)}^FS
 ^XZ`
   }
 
