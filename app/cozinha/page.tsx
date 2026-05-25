@@ -602,7 +602,7 @@ export default function Cozinha() {
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,32\n^FO330,20^FD${dados.numero}/${dados.total}^FS\n`
+      ? `^CF0,22\n^FO20,5^FDEtiqueta ${dados.numero} de ${dados.total}^FS\n`
       : ''
     return `^XA
 ^CI28
@@ -616,7 +616,7 @@ ${contador}^CF0,42
 ^FO20,360^GB408,2,2^FS
 ^CF0,18
 ^FO20,560^FD${esc(dados.data)}^FS
-^FO250,500^GFA,1770,1770,15,,:::::::::::::::::gG03JF,I07LF8I01FFC0MF8,I0MFCI03FFC1MF8,I0MFCI03FFE1MF8,I0MFCI07FFC1MF8,:I0MFCI0IFC1MF8,:I0MFCI0IFE1MF8,I0MFC001IFE1MF8,:I0MF8003IFE1MF8,I0IFM03IFE1IF,I0IFM03IFE1FFE,I0IFM07IFE1FFE,I0IFM07IFE1IF,I0IFM0JFE1IF,:I0IFL01JFE1IF,I07FFL01JFE1IF,I0IFL01JFE1IF,I0IFL03JFE1IF,:I0IFL07JFE1IF,I07FFL07FEFFE1IF,I07FFL0FFCFFE1IF,:I07FFL0FF8FFE1IF,I07FFK01FF8FFE1IF,:I07FFK03FF0FFE1IF,:I07FFK03FE0FFE1IF,I07FFK07FE0FFE1IF,:I07FFK0FFC0FFE1IF,:I07FFJ01FF80FFE1IF,::I07FFJ03FF00FFE1IF,:I07FFJ07FE00FFE1IF,::I07FFJ0FFC00FFE1IF,:I07FFI01FFC00FFE1KF8,I07JFC1TFC,:::::::::I07FFN01FFE1KF,I07FFO0FFE0IF,I07FFO0FFE1IF,:::::::I07FFO0FFE0IF,I07FFO0FFE1IF,I07FFO0FFC0FFE,,:::V07OF8,I07gHFC,::::I07IFC2,,:::::::::::::::::^FS
+^FO320,500^GFA,1770,1770,15,,:::::::::::::::::gG03JF,I07LF8I01FFC0MF8,I0MFCI03FFC1MF8,I0MFCI03FFE1MF8,I0MFCI07FFC1MF8,:I0MFCI0IFC1MF8,:I0MFCI0IFE1MF8,I0MFC001IFE1MF8,:I0MF8003IFE1MF8,I0IFM03IFE1IF,I0IFM03IFE1FFE,I0IFM07IFE1FFE,I0IFM07IFE1IF,I0IFM0JFE1IF,:I0IFL01JFE1IF,I07FFL01JFE1IF,I0IFL01JFE1IF,I0IFL03JFE1IF,:I0IFL07JFE1IF,I07FFL07FEFFE1IF,I07FFL0FFCFFE1IF,:I07FFL0FF8FFE1IF,I07FFK01FF8FFE1IF,:I07FFK03FF0FFE1IF,:I07FFK03FE0FFE1IF,I07FFK07FE0FFE1IF,:I07FFK0FFC0FFE1IF,:I07FFJ01FF80FFE1IF,::I07FFJ03FF00FFE1IF,:I07FFJ07FE00FFE1IF,::I07FFJ0FFC00FFE1IF,:I07FFI01FFC00FFE1KF8,I07JFC1TFC,:::::::::I07FFN01FFE1KF,I07FFO0FFE0IF,I07FFO0FFE1IF,:::::::I07FFO0FFE0IF,I07FFO0FFE1IF,I07FFO0FFC0FFE,,:::V07OF8,I07gHFC,::::I07IFC2,,:::::::::::::::::^FS
 ^XZ`
   }
 
@@ -645,7 +645,7 @@ ${contador}^CF0,42
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,32\n^FO330,20^FD${dados.numero}/${dados.total}^FS\n`
+      ? `^CF0,22\n^FO20,5^FDEtiqueta ${dados.numero} de ${dados.total}^FS\n`
       : ''
     return `^XA
 ^CI28
@@ -705,7 +705,7 @@ ${contador}^CF0,48
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,32\n^FO330,20^FD${dados.numero}/${dados.total}^FS\n`
+      ? `^CF0,22\n^FO20,5^FDEtiqueta ${dados.numero} de ${dados.total}^FS\n`
       : ''
     return `^XA
 ^CI28
@@ -735,7 +735,7 @@ ${contador}^CF0,48
   }) {
     const esc = (s: string) => (s || '').replace(/[\^~\\]/g, '')
     const contador = (dados.total && dados.total > 1 && dados.numero)
-      ? `^CF0,32\n^FO330,20^FD${dados.numero}/${dados.total}^FS\n`
+      ? `^CF0,22\n^FO20,5^FDEtiqueta ${dados.numero} de ${dados.total}^FS\n`
       : ''
     return `^XA
 ^CI28
