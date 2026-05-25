@@ -604,7 +604,7 @@ export default function Cozinha() {
     const contador = (dados.total && dados.total > 1 && dados.numero)
       ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
-    ,return `^XA
+    return `^XA
 ^PW448
 ^LL600
 ^CI28
