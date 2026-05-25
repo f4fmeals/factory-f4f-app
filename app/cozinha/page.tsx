@@ -591,19 +591,6 @@ export default function Cozinha() {
 
   const PRINTER_URL = 'https://impressora.f4fmeals.com/print'
 
-  // ── ETIQUETAS EM PORTRAIT (rolo rodado 90° à esquerda) ────────
-  // O conteúdo é desenhado no sistema de coordenadas original (609 x 406 dots = landscape lógico),
-  // mas o ^PO I (Print Orientation Invert) + ^FWR (Field Word Rotation Right) faz com que
-  // a impressora rode toda a etiqueta 90° à esquerda para sair no rolo portrait.
-  //
-  // Dimensões físicas reais do label (portrait):
-  //   ^PW406  (largura física do rolo = antiga altura)
-  //   ^LL609  (comprimento físico = antiga largura)
-  //
-  // ^FWR roda cada campo 90° à direita relativamente à origem; combinado com ^LH0,0 e mantendo
-  // as coordenadas ^FO inalteradas, o resultado é o desenho original rodado 90° à esquerda
-  // (o topo da etiqueta original passa a ficar do lado direito do rolo portrait).
-
   function gerarZPL(dados: {
     componenteDestino: string
     pratoDestino: string
@@ -618,12 +605,11 @@ export default function Cozinha() {
       ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW406
-^LL609
+^PW609
+^LL406
 ^CI28
 ^LH0,0
-^FWR
-^CF0,52
+${contador}^CF0,52
 ^FO20,20^FB420,2,4,L^FD${esc(dados.ingrediente)}^FS
 ^CF0,30
 ^FO20,150^FB570,1,0,L^FD${esc(dados.componenteDestino)}^FS
@@ -632,7 +618,7 @@ export default function Cozinha() {
 ^FO20,300^GB570,2,2^FS
 ^CF0,18
 ^FO20,370^FD${esc(dados.data)}^FS
-${contador}^XZ`
+^XZ`
   }
 
   async function imprimirEtiqueta(
@@ -663,12 +649,11 @@ ${contador}^XZ`
       ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW406
-^LL609
+^PW609
+^LL406
 ^CI28
 ^LH0,0
-^FWR
-^CF0,52
+${contador}^CF0,52
 ^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,22
 ^FO20,150^FB570,2,0,L^FD${esc(dados.pratosDestino)}^FS
@@ -679,7 +664,7 @@ ${contador}^XZ`
 ^FO20,300^FDENTRADA ABATEDOR: ${esc(dados.horaAbatedor || '')}^FS
 ^CF0,18
 ^FO20,370^FD${esc(dados.data)}^FS
-${contador}^XZ`
+^XZ`
   }
 
   async function imprimirEtiquetaConfeccao(
@@ -726,12 +711,11 @@ ${contador}^XZ`
       ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW406
-^LL609
+^PW609
+^LL406
 ^CI28
 ^LH0,0
-^FWR
-^CF0,52
+${contador}^CF0,52
 ^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,22
 ^FO20,150^FB570,2,0,L^FD${esc(dados.pratosDestino)}^FS
@@ -744,7 +728,7 @@ ${contador}^XZ`
 ^FO20,325^FDARREFECIMENTO: ${esc(dados.tempoArrefecimento)}^FS
 ^CF0,18
 ^FO20,375^FD${esc(dados.data)}^FS
-${contador}^XZ`
+^XZ`
   }
 
   function gerarZPLFinalizacao(dados: {
@@ -759,12 +743,11 @@ ${contador}^XZ`
       ? `^CF0,36\n^FO440,60^FD${dados.numero}/${dados.total}^FS\n`
       : ''
     return `^XA
-^PW406
-^LL609
+^PW609
+^LL406
 ^CI28
 ^LH0,0
-^FWR
-^CF0,52
+${contador}^CF0,52
 ^FO20,20^FB420,2,4,L^FD${esc(dados.componente)}^FS
 ^CF0,30
 ^FO20,160^FB570,2,0,L^FD${esc(dados.pratoDestino)}^FS
@@ -773,7 +756,7 @@ ${contador}^XZ`
 ^FO20,290^FD(Produto Finalizado)^FS
 ^CF0,18
 ^FO20,370^FD${esc(dados.data)}^FS
-${contador}^XZ`
+^XZ`
   }
 
   async function imprimirEtiquetaFinalizacao(
