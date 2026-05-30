@@ -124,6 +124,23 @@ export default function FoodCostPage() {
     router.push('/login')
   }
 
+  async function fetchAll(table, columns, applyFilters) {
+    const pageSize = 1000
+    let from = 0
+    let todos = []
+    while (true) {
+      let query = supabase.from(table).select(columns).order('id', { ascending: true }).range(from, from + pageSize - 1)
+      if (applyFilters) query = applyFilters(query)
+      const { data, error } = await query
+      if (error) throw error
+      if (!data || data.length === 0) break
+      todos = todos.concat(data)
+      if (data.length < pageSize) break
+      from += pageSize
+    }
+    return todos
+  }
+
   async function carregarDados() {
     setACarregar(true)
 
@@ -137,20 +154,21 @@ export default function FoodCostPage() {
     if (listaPratos.length === 0) { setACarregar(false); return }
 
     const pratoIds = listaPratos.map((p) => p.id)
-    const { data: pcData } = await supabase
-      .from('pratos_componentes')
-      .select(`id, prato_id, componente_id, quantidade_final, unidade, ordem,
-               componentes (id, nome, rendimento_final, unidade_rendimento)`)
-      .in('prato_id', pratoIds)
-      .order('ordem', { ascending: true })
+    const pcData = await fetchAll(
+      'pratos_componentes',
+      `id, prato_id, componente_id, quantidade_final, unidade, ordem,
+               componentes (id, nome, rendimento_final, unidade_rendimento)`,
+      (q) => q.in('prato_id', pratoIds)
+    )
     const listaPC = (pcData as PratoComponente[]) || []
     setPratosComponentes(listaPC)
 
     const componenteIds = Array.from(new Set(listaPC.map((pc) => Number(pc.componente_id)).filter((id) => !isNaN(id))))
-    const { data: ciData } = await supabase
-      .from('componente_ingredientes')
-      .select('id, componente_id, ingrediente_id, quantidade, unidade, ingredientes (id, nome)')
-      .in('componente_id', componenteIds.length > 0 ? componenteIds : [-1])
+    const ciData = await fetchAll(
+      'componente_ingredientes',
+      'id, componente_id, ingrediente_id, quantidade, unidade, ingredientes (id, nome)',
+      (q) => q.in('componente_id', componenteIds.length > 0 ? componenteIds : [-1])
+    )
     const listaCI = (ciData as ComponenteIngrediente[]) || []
     setComponentesIngredientes(listaCI)
 
