@@ -232,7 +232,7 @@ function SeletorEtiquetas({
   altura?: number
 }) {
   const decrementar = () => onChange(Math.max(1, valor - 1))
-  const incrementar = () => onChange(Math.min(5, valor + 1))
+  const incrementar = () => onChange(Math.min(30, valor + 1))
   const estiloBotao: React.CSSProperties = {
     width: '32px',
     height: `${altura}px`,
@@ -254,8 +254,8 @@ function SeletorEtiquetas({
       <button type="button" onClick={decrementar} disabled={valor <= 1}
         style={{ ...estiloBotao, borderRadius: '8px 0 0 8px', color: '#6b7280', cursor: valor <= 1 ? 'not-allowed' : 'pointer' }}>−</button>
       <span style={{ fontSize: '14px', fontWeight: '600', width: '28px', height: `${altura}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151', borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb', background: '#fff' }}>{valor}</span>
-      <button type="button" onClick={incrementar} disabled={valor >= 5}
-        style={{ ...estiloBotao, borderRadius: '0 8px 8px 0', color: valor >= 5 ? '#d1d5db' : '#6b7280', cursor: valor >= 5 ? 'not-allowed' : 'pointer' }}>+</button>
+      <button type="button" onClick={incrementar} disabled={valor >= 30}
+        style={{ ...estiloBotao, borderRadius: '0 8px 8px 0', color: valor >= 30 ? '#d1d5db' : '#6b7280', cursor: valor >= 30 ? 'not-allowed' : 'pointer' }}>+</button>
     </div>
   )
 }
@@ -1344,7 +1344,7 @@ ${contador}^CF0,34
                               Concluir sem imprimir
                             </button>
                           )}
-                          <button onClick={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false, impressao_etiqueta: false, extras: null, tempo_arrefecimento: null, hora_entrada_abatedor: null })}
+                          <button onClick={() => guardarRegisto('confeccao', comp.componenteId, { concluido: false, impressao_etiqueta: false, extras: null })}
                             style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: '#f3f4f6', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>
                             Desfazer
                           </button>
