@@ -465,11 +465,27 @@ export default function Home() {
     setLoadingPesquisaEdicao(false)
   }
 
+  // Busca todas as linhas em páginas de 1000 para ultrapassar o limite por defeito do Supabase
+  async function fetchAllPaginado(table: string, columns: string, applyQuery: (q: any) => any) {
+    const pageSize = 1000
+    let from = 0
+    let todos: any[] = []
+    while (true) {
+      const { data, error } = await applyQuery(supabase.from(table).select(columns)).range(from, from + pageSize - 1)
+      if (error) throw error
+      if (!data || data.length === 0) break
+      todos = todos.concat(data)
+      if (data.length < pageSize) break
+      from += pageSize
+    }
+    return todos
+  }
+
   async function fetchProducoes() {
     const { data, error } = await supabase.from('producoes_semanais').select('*').order('id', { ascending: false })
     if (!error) {
       setProducoes((data as ProducaoSemanal[]) || [])
-      const { data: itensData } = await supabase.from('producoes_semanais_itens').select('producao_semanal_id, quantidade, pratos (nome, categoria_prato)')
+      const itensData = await fetchAllPaginado('producoes_semanais_itens', 'producao_semanal_id, quantidade, pratos (nome, categoria_prato)', (q) => q.order('id', { ascending: true }))
       if (itensData) {
         const resumo: Record<number, Record<string, number>> = {}
         const porProducao: Record<number, Record<string, string>> = {}
@@ -551,11 +567,14 @@ export default function Home() {
 
   async function verDetalhesProducao(producao: ProducaoSemanal) {
     setProducaoSelecionada(producao); setACarregarDetalhes(true)
-    const { data: detalhesData, error: detalhesError } = await supabase
-      .from('producoes_semanais_itens')
-      .select(`id, quantidade, pratos (id, nome, sku, tamanho, peso_final, prioridade_embalamento, categoria_prato)`)
-      .eq('producao_semanal_id', producao.id).order('ordem', { ascending: true })
-    if (detalhesError) { setDetalhesProducao([]); setACarregarDetalhes(false); return }
+    let detalhesData: any[]
+    try {
+      detalhesData = await fetchAllPaginado(
+        'producoes_semanais_itens',
+        `id, quantidade, pratos (id, nome, sku, tamanho, peso_final, prioridade_embalamento, categoria_prato)`,
+        (q) => q.eq('producao_semanal_id', producao.id).order('ordem', { ascending: true }).order('id', { ascending: true })
+      )
+    } catch { setDetalhesProducao([]); setACarregarDetalhes(false); return }
     const detalhes = (detalhesData as DetalheProducao[]) || []
     setDetalhesProducao(detalhes)
     const pratoIds = detalhes.map((item) => Number(item.pratos?.id)).filter((id) => !isNaN(id))
@@ -603,10 +622,14 @@ export default function Home() {
 
   async function iniciarEdicaoItensPlano(producao: ProducaoSemanal) {
     setPlanoEditandoId(producao.id); setItensPlanoEdicao([]); setPesquisaEdicao(''); setPratosPesquisaEdicao([]); setQuantidadesEdicaoAdicionar({})
-    const { data, error } = await supabase
-      .from('producoes_semanais_itens').select(`ordem, quantidade, pratos (id, nome, sku, tamanho, peso_final, prioridade_embalamento, categoria_prato)`)
-      .eq('producao_semanal_id', producao.id).order('ordem', { ascending: true })
-    if (error) { alert('Erro ao carregar os itens do plano.'); setPlanoEditandoId(null); return }
+    let data: any[]
+    try {
+      data = await fetchAllPaginado(
+        'producoes_semanais_itens',
+        `ordem, quantidade, pratos (id, nome, sku, tamanho, peso_final, prioridade_embalamento, categoria_prato)`,
+        (q) => q.eq('producao_semanal_id', producao.id).order('ordem', { ascending: true }).order('id', { ascending: true })
+      )
+    } catch { alert('Erro ao carregar os itens do plano.'); setPlanoEditandoId(null); return }
     const itensConvertidos: ItemPlanoEdicao[] = ((data as any[]) || []).filter((item) => item.pratos).map((item) => ({
       prato_id: Number(item.pratos.id), nome: item.pratos.nome, sku: item.pratos.sku, tamanho: item.pratos.tamanho,
       peso_final: Number(item.pratos.peso_final || 0),
