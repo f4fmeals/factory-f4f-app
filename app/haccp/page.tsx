@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
-type AbaHaccp = 'temperaturas' | 'limpeza' | 'lavagem_horto' | 'confeccao_arref' | 'rececao'
+type AbaHaccp = 'temperaturas' | 'limpeza' | 'lavagem_horto' | 'confeccao_arref' | 'rececao' | 'descongelacao'
 
 type Instalacao = {
   id: number
@@ -154,6 +154,26 @@ type RegistoRececao = {
   hora_registo: string
   lote: string | null
   temperatura_chegada: number
+  nome_staff: string
+  observacoes: string | null
+  user_id: string | null
+  criado_em: string
+}
+
+type RegistoDescongelacao = {
+  id: number
+  instalacao_id: number
+  ingrediente_id: number | null
+  produto_nome: string
+  categoria: string | null
+  fornecedor_nome: string | null
+  data_registo: string
+  hora_registo: string
+  lote: string | null
+  temperatura_inicio: number | null
+  temperatura_fim: number | null
+  temperatura_camara: number | null
+  tempo_decorrido: number | null
   nome_staff: string
   observacoes: string | null
   user_id: string | null
@@ -322,6 +342,28 @@ export default function HaccpHome() {
   const [lojasFabricoDisponiveis, setLojasFabricoDisponiveis] = useState<Instalacao[]>([])
   const [formRececaoLojaFabricoId, setFormRececaoLojaFabricoId] = useState<number | ''>('')
 
+  // --- DESCONGELAÇÃO ---
+  const [registosDescongelacao, setRegistosDescongelacao] = useState<RegistoDescongelacao[]>([])
+  const [aCarregarDescongelacao, setACarregarDescongelacao] = useState(false)
+  const [filtroDescongelacaoDataInicio, setFiltroDescongelacaoDataInicio] = useState('')
+  const [filtroDescongelacaoDataFim, setFiltroDescongelacaoDataFim] = useState('')
+
+  const [modalDescongelacaoAberto, setModalDescongelacaoAberto] = useState(false)
+  const [registoDescongelacaoEmEdicao, setRegistoDescongelacaoEmEdicao] = useState<RegistoDescongelacao | null>(null)
+  const [pesquisaIngredienteDesc, setPesquisaIngredienteDesc] = useState('')
+  const [sugestoesIngredientesDesc, setSugestoesIngredientesDesc] = useState<IngredienteSugestao[]>([])
+  const [aCarregarSugestoesDesc, setACarregarSugestoesDesc] = useState(false)
+  const [ingredienteSelecionadoDesc, setIngredienteSelecionadoDesc] = useState<IngredienteSugestao | null>(null)
+  const [formDescData, setFormDescData] = useState('')
+  const [formDescLote, setFormDescLote] = useState('')
+  const [formDescTempInicio, setFormDescTempInicio] = useState<number | ''>(-18)
+  const [formDescTempFim, setFormDescTempFim] = useState<number | ''>(4)
+  const [formDescTempCamara, setFormDescTempCamara] = useState<number | ''>(4)
+  const [formDescTempo, setFormDescTempo] = useState<number | ''>('')
+  const [formDescStaff, setFormDescStaff] = useState('')
+  const [formDescObs, setFormDescObs] = useState('')
+  const [aGuardarDescongelacao, setAGuardarDescongelacao] = useState(false)
+
   // ===== Inicialização =====
   useEffect(() => {
     async function verificarAcesso() {
@@ -362,6 +404,7 @@ export default function HaccpHome() {
       setRegistosLavagem([]); setRegistosConfeccao([])
       setRegistosRececao([])
       setRegistosRececaoLoja([])
+      setRegistosDescongelacao([])
     }
   }, [instalacaoSel])
 
@@ -416,18 +459,25 @@ export default function HaccpHome() {
         }
       }
     }
+    if (abaAtiva === 'descongelacao' && !aCarregarDescongelacao && registosDescongelacao.length === 0) {
+      const hoje = obterDataHoje()
+      const ha7 = new Date(); ha7.setDate(ha7.getDate() - 7)
+      const data7 = `${ha7.getFullYear()}-${String(ha7.getMonth() + 1).padStart(2, '0')}-${String(ha7.getDate()).padStart(2, '0')}`
+      setFiltroDescongelacaoDataInicio(data7); setFiltroDescongelacaoDataFim(hoje)
+      carregarRegistosDescongelacao(data7, hoje)
+    }
   }, [abaAtiva, instalacaoSel])
 
   useEffect(() => {
     const bloquear = modalRegistoAberto || gestaoInstalacoesAberta || modalLimpezaAberto
       || modalRececaoAberto || modalConfigAberto || modalEquipamentosAberto
       || modalEspacosAberto || modalFuncionariosAberto
-      || modalNovoTempPostAberto || modalLimpezaPostAberto
+      || modalNovoTempPostAberto || modalLimpezaPostAberto || modalDescongelacaoAberto
     document.body.style.overflow = bloquear ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [modalRegistoAberto, gestaoInstalacoesAberta, modalLimpezaAberto, modalRececaoAberto,
       modalConfigAberto, modalEquipamentosAberto, modalEspacosAberto, modalFuncionariosAberto,
-      modalNovoTempPostAberto, modalLimpezaPostAberto])
+      modalNovoTempPostAberto, modalLimpezaPostAberto, modalDescongelacaoAberto])
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -1365,6 +1415,124 @@ export default function HaccpHome() {
     await carregarRegistosRececao(filtroRececaoDataInicio, filtroRececaoDataFim)
   }
 
+  // ===== DESCONGELAÇÃO =====
+  async function carregarRegistosDescongelacao(dataInicio: string, dataFim: string) {
+    if (!instalacaoSel) return
+    setACarregarDescongelacao(true)
+    const { data, error } = await supabase
+      .from('haccp_descongelacoes').select('*')
+      .eq('instalacao_id', instalacaoSel.id)
+      .gte('data_registo', dataInicio).lte('data_registo', dataFim)
+      .order('data_registo', { ascending: false }).order('hora_registo', { ascending: false })
+    if (!error) setRegistosDescongelacao((data as RegistoDescongelacao[]) || [])
+    setACarregarDescongelacao(false)
+  }
+
+  async function pesquisarIngredientesDesc(texto: string) {
+    if (texto.trim().length < 2) { setSugestoesIngredientesDesc([]); return }
+    setACarregarSugestoesDesc(true)
+    const { data, error } = await supabase
+      .from('ingredientes').select('id, nome, categoria, nome_fornecedor')
+      .ilike('nome', `%${texto.trim()}%`).order('nome', { ascending: true }).limit(10)
+    if (!error) setSugestoesIngredientesDesc((data as IngredienteSugestao[]) || [])
+    setACarregarSugestoesDesc(false)
+  }
+
+  function selecionarIngredienteDesc(ing: IngredienteSugestao) {
+    setIngredienteSelecionadoDesc(ing); setPesquisaIngredienteDesc(''); setSugestoesIngredientesDesc([])
+  }
+
+  function abrirModalNovaDescongelacao() {
+    setRegistoDescongelacaoEmEdicao(null)
+    setIngredienteSelecionadoDesc(null); setPesquisaIngredienteDesc(''); setSugestoesIngredientesDesc([])
+    setFormDescData(obterDataHoje()); setFormDescLote('')
+    setFormDescTempInicio(-18); setFormDescTempFim(4); setFormDescTempCamara(4); setFormDescTempo('')
+    setFormDescStaff(''); setFormDescObs('')
+    setModalDescongelacaoAberto(true)
+  }
+
+  function abrirModalEditarDescongelacao(reg: RegistoDescongelacao) {
+    setRegistoDescongelacaoEmEdicao(reg)
+    setIngredienteSelecionadoDesc({
+      id: reg.ingrediente_id ?? 0, nome: reg.produto_nome,
+      categoria: reg.categoria, nome_fornecedor: reg.fornecedor_nome,
+    })
+    setPesquisaIngredienteDesc(''); setSugestoesIngredientesDesc([])
+    setFormDescData(reg.data_registo)
+    setFormDescLote(reg.lote || '')
+    setFormDescTempInicio(reg.temperatura_inicio ?? '')
+    setFormDescTempFim(reg.temperatura_fim ?? '')
+    setFormDescTempCamara(reg.temperatura_camara ?? '')
+    setFormDescTempo(reg.tempo_decorrido ?? '')
+    setFormDescStaff(reg.nome_staff)
+    setFormDescObs(reg.observacoes || '')
+    setModalDescongelacaoAberto(true)
+  }
+
+  function fecharModalDescongelacao() {
+    setModalDescongelacaoAberto(false)
+    setRegistoDescongelacaoEmEdicao(null); setIngredienteSelecionadoDesc(null)
+  }
+
+  async function guardarRegistoDescongelacao() {
+    if (!instalacaoSel) return
+    if (!ingredienteSelecionadoDesc) { alert('Seleciona um produto.'); return }
+    const staffNome = formDescStaff.trim()
+    if (!staffNome) { alert('Seleciona o responsável.'); return }
+    if (!formDescData) { alert('Indica a data.'); return }
+    setAGuardarDescongelacao(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const camposComuns = {
+      ingrediente_id: ingredienteSelecionadoDesc.id || null,
+      produto_nome: ingredienteSelecionadoDesc.nome,
+      categoria: ingredienteSelecionadoDesc.categoria,
+      fornecedor_nome: ingredienteSelecionadoDesc.nome_fornecedor,
+      data_registo: formDescData,
+      lote: formDescLote.trim() || null,
+      temperatura_inicio: formDescTempInicio === '' ? null : Number(formDescTempInicio),
+      temperatura_fim: formDescTempFim === '' ? null : Number(formDescTempFim),
+      temperatura_camara: formDescTempCamara === '' ? null : Number(formDescTempCamara),
+      tempo_decorrido: formDescTempo === '' ? null : Number(formDescTempo),
+      nome_staff: staffNome,
+      observacoes: formDescObs.trim() || null,
+    }
+    if (registoDescongelacaoEmEdicao) {
+      const podeEditar = ehGestor || registoDescongelacaoEmEdicao.user_id === user?.id
+      if (!podeEditar) { alert('Não tens permissão para editar este registo.'); setAGuardarDescongelacao(false); return }
+      const { error } = await supabase.from('haccp_descongelacoes').update(camposComuns)
+        .eq('id', registoDescongelacaoEmEdicao.id)
+      if (error) { alert('Erro ao atualizar o registo.'); setAGuardarDescongelacao(false); return }
+    } else {
+      const { error } = await supabase.from('haccp_descongelacoes').insert([{
+        ...camposComuns,
+        instalacao_id: instalacaoSel.id,
+        hora_registo: obterHoraAgora(),
+        user_id: user?.id || null,
+      }])
+      if (error) { alert('Erro ao guardar o registo.'); setAGuardarDescongelacao(false); return }
+    }
+    await carregarRegistosDescongelacao(filtroDescongelacaoDataInicio, filtroDescongelacaoDataFim)
+    fecharModalDescongelacao()
+    setAGuardarDescongelacao(false)
+  }
+
+  async function apagarRegistoDescongelacao(reg: RegistoDescongelacao) {
+    if (!ehGestor) return
+    if (!window.confirm(`Apagar o registo de descongelação de "${reg.produto_nome}" (${reg.data_registo})?`)) return
+    const { error } = await supabase.from('haccp_descongelacoes').delete().eq('id', reg.id)
+    if (error) { alert('Erro ao apagar o registo.'); return }
+    await carregarRegistosDescongelacao(filtroDescongelacaoDataInicio, filtroDescongelacaoDataFim)
+  }
+
+  function formatarTempoDecorrido(min: number | null) {
+    if (min === null || min === undefined) return '—'
+    const h = Math.floor(min / 60)
+    const m = Math.round(min % 60)
+    if (h > 0 && m > 0) return `${h}h ${m}min`
+    if (h > 0) return `${h}h`
+    return `${m}min`
+  }
+
   // ===== RECEÇÃO DE PRATOS (lojas sem fabrico) =====
   async function carregarLojasFabricoDisponiveis() {
     const { data } = await supabase
@@ -1593,6 +1761,7 @@ export default function HaccpHome() {
             { id: 'temperaturas', label: '🌡️ Temperaturas de frigoríficos', soFabrico: false },
             { id: 'limpeza', label: '🧽 Registos de limpeza', soFabrico: false },
             { id: 'rececao', label: '📦 Receção de mercadorias', soFabrico: false },
+            { id: 'descongelacao', label: '❄️ Descongelação', soFabrico: false },
             { id: 'lavagem_horto', label: '🥬 Lavagem de hortofrutícolas', soFabrico: true },
             { id: 'confeccao_arref', label: '🔥 Confeção e arrefecimento', soFabrico: true },
           ] as { id: AbaHaccp; label: string; soFabrico: boolean }[])
@@ -1608,6 +1777,7 @@ export default function HaccpHome() {
         {abaAtiva === 'temperaturas' && renderAbaTemperaturas()}
         {abaAtiva === 'limpeza' && renderAbaLimpeza()}
         {abaAtiva === 'rececao' && renderAbaRececao()}
+        {abaAtiva === 'descongelacao' && renderAbaDescongelacao()}
         {abaAtiva === 'lavagem_horto' && renderAbaLavagemHorto()}
         {abaAtiva === 'confeccao_arref' && renderAbaConfeccaoArref()}
       </div>
@@ -1618,6 +1788,7 @@ export default function HaccpHome() {
       {renderModalLimpeza()}
       {renderModalLimpezaPost()}
       {renderModalRececao()}
+      {renderModalDescongelacao()}
       {ehGestor && renderModalConfig()}
       {ehGestor && renderModalEquipamentos()}
       {ehGestor && renderModalEspacos()}
@@ -2096,6 +2267,87 @@ export default function HaccpHome() {
                             style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
                           {ehGestor && (
                             <button onClick={() => apagarRegistoRececao(r)}
+                              style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function renderAbaDescongelacao() {
+    return (
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px 24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+          <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: 0 }}>❄️ Descongelação</p>
+          <button onClick={abrirModalNovaDescongelacao}
+            style={{ background: '#80c944', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: '500' }}>
+            + Nova descongelação
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>De</label>
+            <input type="date" value={filtroDescongelacaoDataInicio} onChange={(e) => setFiltroDescongelacaoDataInicio(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Até</label>
+            <input type="date" value={filtroDescongelacaoDataFim} onChange={(e) => setFiltroDescongelacaoDataFim(e.target.value)}
+              style={{ border: '1px solid #d1d5db', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', color: '#111', background: '#fff' }} />
+          </div>
+          <button onClick={() => carregarRegistosDescongelacao(filtroDescongelacaoDataInicio, filtroDescongelacaoDataFim)}
+            style={{ background: '#374151', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Aplicar</button>
+        </div>
+        {aCarregarDescongelacao ? (
+          <p style={{ color: '#6b7280', fontSize: '13px' }}>A carregar...</p>
+        ) : registosDescongelacao.length === 0 ? (
+          <p style={{ color: '#6b7280', fontSize: '13px' }}>Sem registos de descongelação no período selecionado.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ background: '#f3f4f6' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Data/Hora</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Produto</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Lote</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Temp. início</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Temp. fim</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Temp. câmara</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Tempo</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Responsável</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Obs.</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid #e5e7eb', color: '#111' }}>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {registosDescongelacao.map((r) => {
+                  const dataHora = `${r.data_registo} ${formatarHora(r.hora_registo)}`
+                  const fmtTemp = (v: number | null) => (v === null || v === undefined) ? '—' : `${Number(v).toFixed(1)}°C`
+                  return (
+                    <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '8px 10px', color: '#111' }}>{dataHora}</td>
+                      <td style={{ padding: '8px 10px', color: '#111', fontWeight: '500' }}>{r.produto_nome}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.lote || '—'}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{fmtTemp(r.temperatura_inicio)}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{fmtTemp(r.temperatura_fim)}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{fmtTemp(r.temperatura_camara)}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{formatarTempoDecorrido(r.tempo_decorrido)}</td>
+                      <td style={{ padding: '8px 10px', color: '#111' }}>{r.nome_staff}</td>
+                      <td style={{ padding: '8px 10px', color: '#374151' }}>{r.observacoes || '—'}</td>
+                      <td style={{ padding: '8px 10px' }}>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button onClick={() => abrirModalEditarDescongelacao(r)}
+                            style={{ background: '#dbeafe', color: '#1e40af', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Editar</button>
+                          {ehGestor && (
+                            <button onClick={() => apagarRegistoDescongelacao(r)}
                               style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer' }}>Apagar</button>
                           )}
                         </div>
@@ -2618,6 +2870,143 @@ export default function HaccpHome() {
               {aGuardarRececao ? 'A guardar...' : (registoRececaoEmEdicao ? 'Atualizar' : 'Guardar registo')}
             </button>
             <button onClick={fecharModalRececao} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  function renderModalDescongelacao() {
+    if (!modalDescongelacaoAberto) return null
+    const inputNumStyle = { width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box' as const, color: '#111', background: '#fff' }
+    return (
+      <div onClick={(e) => { if (e.target === e.currentTarget) fecharModalDescongelacao() }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px', overflowY: 'auto' }}>
+        <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '520px', padding: '24px', boxShadow: '0 8px 48px rgba(0,0,0,0.22)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+            <div>
+              <p style={{ fontSize: '16px', fontWeight: '600', color: '#111', margin: '0 0 2px' }}>
+                {registoDescongelacaoEmEdicao ? 'Editar descongelação' : 'Nova descongelação'}
+              </p>
+              <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>{instalacaoSel?.nome}</p>
+            </div>
+            <button onClick={fecharModalDescongelacao} style={{ background: '#f3f4f6', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', color: '#374151', cursor: 'pointer' }}>✕</button>
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Produto *</label>
+            {ingredienteSelecionadoDesc ? (
+              <div style={{ border: '1px solid #80c944', borderRadius: '8px', padding: '12px', background: '#f0fdf4' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: '14px', fontWeight: '600', color: '#111', margin: '0 0 4px' }}>{ingredienteSelecionadoDesc.nome}</p>
+                    <p style={{ fontSize: '12px', color: '#374151', margin: 0 }}>Categoria: <strong>{ingredienteSelecionadoDesc.categoria || '—'}</strong></p>
+                    {ingredienteSelecionadoDesc.nome_fornecedor && (
+                      <p style={{ fontSize: '12px', color: '#374151', margin: '2px 0 0' }}>Fornecedor: <strong>{ingredienteSelecionadoDesc.nome_fornecedor}</strong></p>
+                    )}
+                  </div>
+                  <button onClick={() => { setIngredienteSelecionadoDesc(null); setPesquisaIngredienteDesc(''); }}
+                    style={{ background: 'transparent', border: 'none', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>Trocar</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <input type="text" value={pesquisaIngredienteDesc}
+                  onChange={(e) => { setPesquisaIngredienteDesc(e.target.value); pesquisarIngredientesDesc(e.target.value) }}
+                  placeholder="Pesquisa por nome (mín. 2 caracteres)..."
+                  style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }} />
+                {aCarregarSugestoesDesc && <p style={{ fontSize: '11px', color: '#6b7280', margin: '4px 0 0' }}>A pesquisar...</p>}
+                {sugestoesIngredientesDesc.length > 0 && (
+                  <div style={{ border: '1px solid #e5e7eb', borderRadius: '6px', marginTop: '6px', maxHeight: '240px', overflowY: 'auto' }}>
+                    {sugestoesIngredientesDesc.map((ing) => (
+                      <button key={ing.id} onClick={() => selecionarIngredienteDesc(ing)}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', background: '#fff', border: 'none', borderBottom: '1px solid #f3f4f6', padding: '8px 12px', cursor: 'pointer' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}>
+                        <p style={{ fontSize: '13px', fontWeight: '500', color: '#111', margin: 0 }}>{ing.nome}</p>
+                        <p style={{ fontSize: '11px', color: '#6b7280', margin: '2px 0 0' }}>
+                          {ing.categoria || 'sem categoria'} · {ing.nome_fornecedor || 'sem fornecedor'}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {pesquisaIngredienteDesc.trim().length >= 2 && !aCarregarSugestoesDesc && sugestoesIngredientesDesc.length === 0 && (
+                  <p style={{ fontSize: '12px', color: '#9ca3af', margin: '6px 0 0' }}>Nenhum produto encontrado.</p>
+                )}
+              </>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 45%' }}>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Data *</label>
+              <input type="date" value={formDescData} onChange={(e) => setFormDescData(e.target.value)} style={inputNumStyle} />
+            </div>
+            <div style={{ flex: '1 1 45%' }}>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Lote (opcional)</label>
+              <input type="text" value={formDescLote} onChange={(e) => setFormDescLote(e.target.value)}
+                placeholder="ex: L20260505-A" style={inputNumStyle} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 30%' }}>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Temp. início (°C)</label>
+              <input type="number" step={0.1} value={formDescTempInicio}
+                onChange={(e) => setFormDescTempInicio(e.target.value === '' ? '' : Number(e.target.value))} style={inputNumStyle} />
+            </div>
+            <div style={{ flex: '1 1 30%' }}>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Temp. final (°C)</label>
+              <input type="number" step={0.1} value={formDescTempFim}
+                onChange={(e) => setFormDescTempFim(e.target.value === '' ? '' : Number(e.target.value))} style={inputNumStyle} />
+            </div>
+            <div style={{ flex: '1 1 30%' }}>
+              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Temp. câmara (°C)</label>
+              <input type="number" step={0.1} value={formDescTempCamara}
+                onChange={(e) => setFormDescTempCamara(e.target.value === '' ? '' : Number(e.target.value))} style={inputNumStyle} />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Tempo decorrido (minutos)</label>
+            <input type="number" step={1} min={0} value={formDescTempo}
+              onChange={(e) => setFormDescTempo(e.target.value === '' ? '' : Number(e.target.value))}
+              placeholder="ex: 720 (12h)" style={inputNumStyle} />
+          </div>
+
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Responsável *</label>
+            {staff.length === 0 ? (
+              <div style={{ border: '1px solid #fcd34d', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', color: '#92400e' }}>
+                Ainda não há funcionários. {ehGestor ? 'Adiciona-os em "⚙️ Configurações".' : 'Pede a um gestor para os adicionar.'}
+              </div>
+            ) : (
+              <select value={formDescStaff} onChange={(e) => setFormDescStaff(e.target.value)}
+                style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff' }}>
+                <option value="">— Seleciona o responsável —</option>
+                {staff.map((s) => (<option key={s.id} value={s.nome}>{s.nome}</option>))}
+              </select>
+            )}
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Observações (opcional)</label>
+            <textarea value={formDescObs} onChange={(e) => setFormDescObs(e.target.value)} rows={2}
+              style={{ width: '100%', border: '1px solid #d1d5db', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', boxSizing: 'border-box', color: '#111', background: '#fff', resize: 'vertical' }} />
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={guardarRegistoDescongelacao}
+              disabled={aGuardarDescongelacao || !ingredienteSelecionadoDesc || staff.length === 0}
+              style={{
+                background: (!ingredienteSelecionadoDesc || staff.length === 0) ? '#d1d5db' : '#80c944',
+                color: '#fff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '500',
+                cursor: (!ingredienteSelecionadoDesc || staff.length === 0) ? 'not-allowed' : 'pointer'
+              }}>
+              {aGuardarDescongelacao ? 'A guardar...' : (registoDescongelacaoEmEdicao ? 'Atualizar' : 'Guardar registo')}
+            </button>
+            <button onClick={fecharModalDescongelacao} style={{ background: '#e5e7eb', color: '#374151', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>Cancelar</button>
           </div>
         </div>
       </div>
