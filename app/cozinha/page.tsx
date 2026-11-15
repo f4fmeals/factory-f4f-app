@@ -1153,7 +1153,8 @@ ${contador}^CF0,34
               const arrefOk = tempArref >= 20 && tempArref <= 120
               const feito = reg.concluido || false
               const impressa = reg.impressao_etiqueta || false
-              const podeImprimir = qtdFinal > 0
+              const tempConfRegistada = reg.temperatura_confeccao != null
+              const podeImprimir = qtdFinal > 0 && tempConfRegistada
               const pratosDestinoStr = Array.from(comp.pratosDestino).join(', ')
 
               if (!feito) {
@@ -1215,7 +1216,11 @@ ${contador}^CF0,34
 
                   <div>
                     <label style={estiloLabel}>
-                      Temp. confeção — <span style={{ color: confOk ? '#16a34a' : '#dc2626', fontWeight: '500' }}>{confOk ? '✓ OK' : '⚠ Mín. 75°C'}</span>
+                      Temp. confeção — {!tempConfRegistada ? (
+                        <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠ Por registar</span>
+                      ) : (
+                        <span style={{ color: confOk ? '#16a34a' : '#dc2626', fontWeight: '500' }}>{confOk ? '✓ OK' : '⚠ Mín. 75°C'}</span>
+                      )}
                     </label>
                     <SliderComBotoes
                       valor={tempConf}
@@ -1281,7 +1286,7 @@ ${contador}^CF0,34
                     const podeImprimirAgora = podeImprimir && staffOk
                     const chaveEtiq = `confeccao|${comp.componenteId}`
                     const qtdEtiq = numEtiquetas[chaveEtiq] || 1
-                    const labelBotao = !podeImprimir ? 'Define a quantidade final' : !staffOk ? 'Seleciona o funcionário' : (emArrefecimento ? '🖨 Imprimir etiqueta (Produto arrefecido)' : '🖨 Imprimir etiqueta')
+                    const labelBotao = qtdFinal <= 0 ? 'Define a quantidade final' : !tempConfRegistada ? 'Regista a temperatura de confeção' : !staffOk ? 'Seleciona o funcionário' : (emArrefecimento ? '🖨 Imprimir etiqueta (Produto arrefecido)' : '🖨 Imprimir etiqueta')
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
