@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { supabase } from '../../../lib/supabase'
+import { supabase, fetchAllPaginado } from '../../../lib/supabase'
 
 type Prato = {
   id: number
@@ -379,35 +379,38 @@ export default function EditarPratosPage() {
     setLoadingInicial(true)
     setMensagem('')
 
-    const { data: pratosData, error: pratosError } = await supabase
-      .from('pratos')
-      .select('id, nome, sku, tamanho, peso_final, prioridade_embalamento, categoria_prato')
-      .order('nome', { ascending: true })
+    const [pratosRes, componentesRes] = await Promise.allSettled([
+      fetchAllPaginado<Prato>(
+        'pratos',
+        'id, nome, sku, tamanho, peso_final, prioridade_embalamento, categoria_prato',
+        (q) => q.order('nome', { ascending: true })
+      ),
+      fetchAllPaginado<ComponenteBase>('componentes', 'id, nome', (q) =>
+        q.order('nome', { ascending: true })
+      ),
+    ])
 
-    const { data: componentesData, error: componentesError } = await supabase
-      .from('componentes')
-      .select('id, nome')
-      .order('nome', { ascending: true })
+    const erros: string[] = []
 
-    if (pratosError) {
-      console.log('Erro ao carregar pratos:', pratosError)
-      setMensagem(`Erro ao carregar pratos: ${pratosError.message}`)
+    if (pratosRes.status === 'fulfilled') {
+      setPratos(pratosRes.value)
+    } else {
+      console.log('Erro ao carregar pratos:', pratosRes.reason)
       setPratos([])
-    } else {
-      setPratos((pratosData as Prato[]) || [])
+      erros.push(`Erro ao carregar pratos: ${pratosRes.reason?.message ?? pratosRes.reason}`)
     }
 
-    if (componentesError) {
-      console.log('Erro ao carregar componentes:', componentesError)
-      setMensagem((prev) =>
-        prev
-          ? `${prev} | Erro ao carregar componentes: ${componentesError.message}`
-          : `Erro ao carregar componentes: ${componentesError.message}`
-      )
-      setComponentesBase([])
+    if (componentesRes.status === 'fulfilled') {
+      setComponentesBase(componentesRes.value)
     } else {
-      setComponentesBase((componentesData as ComponenteBase[]) || [])
+      console.log('Erro ao carregar componentes:', componentesRes.reason)
+      setComponentesBase([])
+      erros.push(
+        `Erro ao carregar componentes: ${componentesRes.reason?.message ?? componentesRes.reason}`
+      )
     }
+
+    if (erros.length) setMensagem(erros.join(' | '))
 
     setLoadingInicial(false)
   }

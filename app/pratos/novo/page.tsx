@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { supabase } from '../../../lib/supabase'
+import { supabase, fetchAllPaginado } from '../../../lib/supabase'
 
 type ComponenteBase = {
   id: number
@@ -379,32 +379,31 @@ export default function NovoPratoPage() {
     setLoadingDados(true)
     setMensagem('')
 
-    const [componentesRes, pratosRes] = await Promise.all([
-      supabase
-        .from('componentes')
-        .select('id, nome')
-        .order('nome', { ascending: true }),
-      supabase
-        .from('pratos')
-        .select('id, nome, sku, tamanho, peso_final, prioridade_embalamento, categoria_prato')
-        .order('nome', { ascending: true }),
+    const [componentesRes, pratosRes] = await Promise.allSettled([
+      fetchAllPaginado<ComponenteBase>('componentes', 'id, nome', (q) =>
+        q.order('nome', { ascending: true })
+      ),
+      fetchAllPaginado<PratoBase>(
+        'pratos',
+        'id, nome, sku, tamanho, peso_final, prioridade_embalamento, categoria_prato',
+        (q) => q.order('nome', { ascending: true })
+      ),
     ])
 
-    const { data: componentesData, error: componentesError } = componentesRes
-    const { data: pratosData, error: pratosError } = pratosRes
-
-    if (componentesError) {
-      console.log('Erro ao carregar componentes:', componentesError)
-      setComponentesBase([])
-      setMensagem(`Erro ao carregar componentes: ${componentesError.message}`)
+    if (componentesRes.status === 'fulfilled') {
+      setComponentesBase(componentesRes.value)
     } else {
-      setComponentesBase((componentesData as ComponenteBase[]) || [])
+      console.log('Erro ao carregar componentes:', componentesRes.reason)
+      setComponentesBase([])
+      setMensagem(
+        `Erro ao carregar componentes: ${componentesRes.reason?.message ?? componentesRes.reason}`
+      )
     }
 
-    if (pratosError) {
-      console.log('Erro ao carregar pratos:', pratosError)
+    if (pratosRes.status === 'fulfilled') {
+      setPratosBase(pratosRes.value)
     } else {
-      setPratosBase((pratosData as PratoBase[]) || [])
+      console.log('Erro ao carregar pratos:', pratosRes.reason)
     }
 
     setLoadingDados(false)
