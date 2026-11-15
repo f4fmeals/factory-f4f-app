@@ -30,7 +30,7 @@ export default function Inicio() {
     router.push('/login')
   }
 
-  async function entrarNaArea(area: 'gestao' | 'cozinha' | 'haccp' | 'faltas' | 'veiculos' | 'foodcost' | 'consumos') {
+  async function entrarNaArea(area: 'gestao' | 'cozinha' | 'haccp' | 'faltas' | 'veiculos' | 'foodcost' | 'consumos' | 'produtos-abertos') {
     setMensagemErro('')
     setAVerificar(true)
     const rolesPermitidos: Record<string, string[]> = {
@@ -41,6 +41,7 @@ export default function Inicio() {
       veiculos: ['cozinha', 'gestor'],
       foodcost: ['gestor'],
       consumos: ['cozinha', 'gestor'],
+      'produtos-abertos': ['cozinha', 'gestor'],
     }
     if (!rolesPermitidos[area].includes(role)) {
       setMensagemErro('Não tens acesso a esta área.')
@@ -133,6 +134,18 @@ export default function Inicio() {
             <span style={{ fontSize: '48px' }}>♻️</span>
             <span style={{ fontSize: '18px', fontWeight: '500', color: '#111' }}>Consumos/Desperdício</span>
             <span style={{ fontSize: '12px', color: '#6b7280' }}>Registo de Consumos e Lixo</span>
+          </button>
+
+          <button
+            onClick={() => entrarNaArea('produtos-abertos')}
+            disabled={aVerificar}
+            style={{ width: '220px', height: '180px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'border-color 0.2s' }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = '#80c944'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = '#e5e7eb'}
+          >
+            <span style={{ fontSize: '48px' }}>🏷️</span>
+            <span style={{ fontSize: '18px', fontWeight: '500', color: '#111' }}>Produtos Abertos</span>
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>Etiquetas de Validade</span>
           </button>
         </div>
 

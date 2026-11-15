@@ -27,6 +27,7 @@ type Ingrediente = {
   referencia_fornecedor: string | null
   quantidade_embalagem: number | null
   unidade_embalagem: string | null
+  validade_apos_abertura_dias: number | null
 }
 
 export default function EditarIngredientePage() {
@@ -42,6 +43,7 @@ export default function EditarIngredientePage() {
   const [referenciaFornecedor, setReferenciaFornecedor] = useState('')
   const [quantidadeEmbalagem, setQuantidadeEmbalagem] = useState('')
   const [unidadeEmbalagem, setUnidadeEmbalagem] = useState('kg')
+  const [validadeAposAbertura, setValidadeAposAbertura] = useState('')
 
   const [pesquisa, setPesquisa] = useState('')
   const [ingredientesEncontrados, setIngredientesEncontrados] = useState<Ingrediente[]>([])
@@ -81,7 +83,8 @@ export default function EditarIngredientePage() {
         nome_fornecedor,
         referencia_fornecedor,
         quantidade_embalagem,
-        unidade_embalagem
+        unidade_embalagem,
+        validade_apos_abertura_dias
       `)
       .ilike('nome', `%${textoPesquisa}%`)
       .order('nome', { ascending: true })
@@ -119,6 +122,12 @@ export default function EditarIngredientePage() {
         : ''
     )
     setUnidadeEmbalagem(ingrediente.unidade_embalagem || 'kg')
+    setValidadeAposAbertura(
+      ingrediente.validade_apos_abertura_dias !== null &&
+      ingrediente.validade_apos_abertura_dias !== undefined
+        ? String(ingrediente.validade_apos_abertura_dias)
+        : ''
+    )
 
     setMensagem(`Estás a editar o ingrediente "${ingrediente.nome}".`)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -135,6 +144,7 @@ export default function EditarIngredientePage() {
     setReferenciaFornecedor('')
     setQuantidadeEmbalagem('')
     setUnidadeEmbalagem('kg')
+    setValidadeAposAbertura('')
   }
 
   function validarFormulario() {
@@ -175,6 +185,14 @@ export default function EditarIngredientePage() {
       }
     }
 
+    if (validadeAposAbertura.trim()) {
+      const diasNumero = Number(validadeAposAbertura)
+
+      if (!Number.isInteger(diasNumero) || diasNumero <= 0) {
+        return 'A validade após abertura tem de ser um número inteiro de dias maior que zero.'
+      }
+    }
+
     return ''
   }
 
@@ -199,6 +217,9 @@ export default function EditarIngredientePage() {
       : null
     const unidadeEmbalagemFinal =
       quantidadeEmbalagemFinal !== null ? unidadeEmbalagem.trim() : null
+    const validadeAposAberturaFinal = validadeAposAbertura.trim()
+      ? Number(validadeAposAbertura)
+      : null
 
     const { data: existente, error: erroExistente } = await supabase
       .from('ingredientes')
@@ -232,6 +253,7 @@ export default function EditarIngredientePage() {
         referencia_fornecedor: referenciaFornecedorFinal,
         quantidade_embalagem: quantidadeEmbalagemFinal,
         unidade_embalagem: unidadeEmbalagemFinal,
+        validade_apos_abertura_dias: validadeAposAberturaFinal,
       })
       .eq('id', ingredienteSelecionadoId)
 
@@ -455,6 +477,23 @@ export default function EditarIngredientePage() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block mb-2 font-medium">Validade após abertura (dias)</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={validadeAposAbertura}
+                onChange={(e) => setValidadeAposAbertura(e.target.value)}
+                className="w-full border px-3 py-2 rounded bg-white"
+                placeholder="Ex: 5"
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                Nº de dias de validade depois de o produto ser aberto. Usado no separador
+                &quot;Produtos Abertos&quot; para calcular a data de validade da etiqueta.
+              </p>
             </div>
           </div>
 
